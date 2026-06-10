@@ -35,21 +35,23 @@ you'd like changed and rerun is one command.
 
 ```
 fvk_experiments/
-├── DESIGN.md / README.md
-├── configs/                  # one YAML per (subject-set × arm) — the rerun knobs
+├── DESIGN.md / README.md / RESULTS.md   # RESULTS.md is auto-generated (run.py results)
+├── configs/                  # one YAML per (subject × model × arm) — the rerun knobs
 │   ├── astropy10__v4-flash__baseline.yaml
-│   └── astropy10__v4-flash__fvk-v1.yaml
-├── prompts/fvk/              # versioned distilled FVK prompts
-│   ├── v1.md                 # YAML frontmatter: version, date, source repo+commit
-│   └── CHANGELOG.md
+│   ├── astropy10__v4-pro__fvk-v1.yaml … etc.
+├── prompts/fvk/              # versioned, frozen prompts (v1..v5) + CHANGELOG.md
+│   └── vN.md                 # YAML frontmatter: version, date, source commit, optional tag
+├── scripts/
+│   └── build_v3_verbatim.py  # regenerates v3.md (entire kit verbatim) from the submodule
+├── vendor/formal-verification-kit/   # git submodule pinned at the distillation commit
 ├── fvk_bench/                # small python package (uses repo .venv)
 │   ├── config.py             # YAML → dataclasses, validation, labels
 │   ├── data.py               # instance pinning + oracle-text join
-│   ├── extract.py            # pure diff extraction from model output (unit-tested)
+│   ├── extract.py            # pure diff extraction + hunk-count normalization (unit-tested)
 │   ├── inference.py          # DeepSeek calls (threaded, resumable, full raw provenance)
-│   ├── evaluate.py           # subprocess → swebench.harness.run_evaluation
-│   └── report.py             # per-run report.md + summary.json + pair comparison
-├── run.py                    # CLI: run / pin-instances / gold-sanity / compare
+│   ├── evaluate.py           # subprocess → swebench.harness.run_evaluation (+infra retries)
+│   └── report.py             # per-run report.md + summary.json + pair comparison + RESULTS.md
+├── run.py                    # CLI: run / pin-instances / gold-sanity / compare / results
 ├── tests/                    # unit tests for the pure parts
 ├── runs/<run_id>/            # one dir per run: config snapshot, prompts sent, raw
 │   │                         # responses (incl. reasoning), predictions.jsonl,

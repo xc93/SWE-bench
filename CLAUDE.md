@@ -7,10 +7,12 @@ rate. Keep upstream `swebench/` unmodified — all experiment code lives in `fvk
 
 ## Start here
 
-- `fvk_experiments/RESULTS.md` — auto-generated summary of every run (the shareable file)
+- `fvk_experiments/RESULTS.md` — auto-generated summary of every run (the shareable file; ALL solved counts live there, nowhere else)
 - `fvk_experiments/DESIGN.md` — experiment design decisions + evidence (read before changing methodology)
-- `fvk_experiments/README.md` — rerun commands and config knobs
-- Prompts are versioned: `fvk_experiments/prompts/fvk/vN.md` (frontmatter: version/date/source commit; sha256 recorded in every run's `meta.json`). New prompt ⇒ new `vN.md` + new config + CHANGELOG entry; never edit a frozen version.
+- `fvk_experiments/README.md` — rerun commands, config knobs, and the arm table
+- `fvk_experiments/prompts/fvk/CHANGELOG.md` — what each prompt version is and why it exists
+- **Experiment map (as of 2026-06-10)**: subject set `astropy10` (first 10 SWE-bench_Verified astropy instances, pinned in every config); models `deepseek-v4-flash` + `deepseek-v4-pro`; arms = baseline (no system prompt), fvk-v1 (1k-token digest, spec-first), fvk-v2 (10k distillation), fvk-v3 (entire kit verbatim — regenerate via `fvk_experiments/scripts/build_v3_verbatim.py`), fvk-v4 (draft → FVK-check → regenerate), review-v5 (no-FVK control for v4). Numbers: RESULTS.md.
+- Prompts are versioned and FROZEN once run: `fvk_experiments/prompts/fvk/vN.md` (frontmatter: version/date/source commit; optional `tag:` overrides the `fvk-vN` arm label — used by control arms like `review-v5`; sha256 recorded in every run's `meta.json`). New idea ⇒ new `vN.md` + new config + CHANGELOG entry; never edit a frozen version.
 - The kit itself is a submodule at `fvk_experiments/vendor/formal-verification-kit`, pinned to the commit prompts were distilled from (`git submodule update --init`). Distill new prompt versions from the submodule (read files via `git -C <submodule> show <ref>:<path>` for pinned reads).
 
 ## Environment
@@ -25,8 +27,10 @@ rate. Keep upstream `swebench/` unmodified — all experiment code lives in `fvk
 - Run an arm: `.venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/<cfg>.yaml` (stages: `--stages infer,eval,report`; `--run-id <existing>` resumes)
 - Pair report: `.venv/bin/python fvk_experiments/run.py compare --baseline fvk_experiments/runs/<a> --treatment fvk_experiments/runs/<b>`
 - Env sanity: `.venv/bin/python fvk_experiments/run.py gold-sanity --config <cfg>` (gold patches must resolve 10/10 before trusting model evals)
+- New subject set: `.venv/bin/python fvk_experiments/run.py pin-instances --repo <repo> --n <k>` (prints pinned ids to paste into new configs)
 - Regenerate results index: `.venv/bin/python fvk_experiments/run.py results`
 - Unit tests: `.venv/bin/python -m pytest fvk_experiments/tests/ -q`
+- Typical cost/time on this machine: an arm of 10 instances ≈ 5–15 min end-to-end with cached docker images, well under $1 on either model (v3's 240k-token prompts ride DeepSeek prefix caching)
 
 ## Gotchas (this machine / network)
 

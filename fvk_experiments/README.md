@@ -1,15 +1,25 @@
 # FVK Pair-Comparison Experiments
 
-A/B testing of a distilled **formal-verification-kit (FVK)** methodology prompt for
-DeepSeek on SWE-bench. **Results: [RESULTS.md](RESULTS.md)** (auto-generated, one line
-per run). Design decisions and rationale: [DESIGN.md](DESIGN.md).
+A/B testing of **formal-verification-kit (FVK)** methodology prompts for DeepSeek on
+SWE-bench. **Results: [RESULTS.md](RESULTS.md)** (auto-generated, one line per run).
+Design decisions and rationale: [DESIGN.md](DESIGN.md); prompt lineage and intent:
+[prompts/fvk/CHANGELOG.md](prompts/fvk/CHANGELOG.md).
 
-- **Arm A — baseline**: DeepSeek (V4, thinking) gets the standard SWE-bench *oracle*
-  prompt (issue + relevant source files) and answers with a patch. No special prompts.
-- **Arm B — fvk**: identical, plus a versioned FVK prompt
-  ([prompts/fvk/](prompts/fvk/)) injected as a system message: *formalize the program,
-  then verify the fix against the spec, before emitting the patch*.
+Every treatment arm pairs against a **baseline**: DeepSeek (V4, thinking) gets the
+standard SWE-bench *oracle* prompt (issue + relevant source files) and answers with a
+patch — no system message. Treatment arms inject one frozen, versioned prompt from
+[prompts/fvk/](prompts/fvk/) as the system message:
 
+| arm | prompt | idea |
+|---|---|---|
+| `fvk-v1` | `v1.md` (~1.7k tok) | distilled FVK digest, spec-first: formalize → verify → patch |
+| `fvk-v2` | `v2.md` (~10k tok) | comprehensive distillation: full K knowledge base + procedure |
+| `fvk-v3` | `v3.md` (~212k tok) | entire kit repo **verbatim**, thin one-shot wrapper — no distillation; regenerate with [scripts/build_v3_verbatim.py](scripts/build_v3_verbatim.py) |
+| `fvk-v4` | `v4.md` (~1.9k tok) | draft a candidate fix → FVK-check it (formalize + verify, findings) → regenerate |
+| `review-v5` | `v5.md` (~0.8k tok) | **control for v4**: same draft → critique → regenerate structure, plain code review, zero FVK content |
+
+The subject set `astropy10` = the first 10 astropy instances of
+`SWE-bench_Verified:test` in HF row order, pinned explicitly in every config.
 "Solved" = `resolved` in the official SWE-bench evaluation harness (docker).
 
 ## Quickstart (from the SWE-bench repo root)
@@ -43,10 +53,12 @@ Everything is config-driven ([configs/](configs/)):
 
 - **Which tests**: edit `dataset.instance_ids` (pin new ones with
   `run.py pin-instances --repo <repo> --n <k>`).
-- **Which FVK prompt**: point `prompt.fvk_prompt` at `prompts/fvk/vN.md`. Prompt files
+- **Which prompt**: point `prompt.fvk_prompt` at `prompts/fvk/vN.md`. Prompt files
   carry YAML frontmatter (`version`, `source`, `date`); the version becomes part of the
   run label and the file's sha256 is recorded in `meta.json`/reports, so every report is
-  traceable to an exact prompt.
+  traceable to an exact prompt. Non-FVK control prompts set frontmatter `tag:`
+  (e.g. `review-v5`) to override the default `fvk-vN` arm label. Prompts are frozen
+  once run: a new idea ⇒ a new `vN.md` + a CHANGELOG entry + a new config.
 - **Which model**: `model.name` (`deepseek-v4-flash` ⇄ `deepseek-v4-pro`),
   `model.thinking` (true/false). One config per **(subject × model × arm)**, named
   `<subject>__<model-short>__<arm>.yaml` with
