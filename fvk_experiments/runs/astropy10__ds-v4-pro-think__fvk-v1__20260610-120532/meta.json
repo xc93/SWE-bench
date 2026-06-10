@@ -1,0 +1,29 @@
+{
+  "run_id": "astropy10__ds-v4-pro-think__fvk-v1__20260610-120532",
+  "variant": "fvk",
+  "variant_tag": "fvk-v1",
+  "model_label": "deepseek-v4-pro-think__fvk-v1",
+  "model": "deepseek-v4-pro",
+  "thinking": true,
+  "fvk_prompt_path": "prompts/fvk/v1.md",
+  "fvk_prompt_version": "v1",
+  "fvk_prompt_sha256": "540c2ababb8ce40c42c88ec761aa71b0907199c810ca6ea192054e1ee1ae8fdb",
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-12907",
+    "astropy__astropy-13033",
+    "astropy__astropy-13236",
+    "astropy__astropy-13398",
+    "astropy__astropy-13453",
+    "astropy__astropy-13579",
+    "astropy__astropy-13977",
+    "astropy__astropy-14096",
+    "astropy__astropy-14182",
+    "astropy__astropy-14309"
+  ],
+  "started_at": "2026-06-10T12:05:43Z",
+  "finished_at": "2026-06-10T12:10:35Z",
+  "n_with_patch": 10,
+  "n_errors": 0
+}
