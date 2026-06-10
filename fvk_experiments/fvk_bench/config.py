@@ -72,6 +72,10 @@ class Config:
     inference: InferenceCfg
     eval: EvalCfg
     prompt: PromptCfg
+    # Optional arm-label override (e.g. "baseline-replicate-v7" for an
+    # independent re-run of the baseline). Takes precedence over the default
+    # variant label and over any prompt-frontmatter tag.
+    tag: str | None = None
     source_path: Path | None = None
 
     # ---- prompt helpers -------------------------------------------------
@@ -123,8 +127,13 @@ class Config:
 
     # ---- labels ----------------------------------------------------------
     def variant_tag(self) -> str:
-        """Arm label: `tag:` from the prompt frontmatter when present (for
-        non-FVK control prompts, e.g. `review-v5`), else fvk-<version>."""
+        """Arm label, by precedence: config-level `tag:`, then the prompt
+        frontmatter `tag:` (non-FVK control prompts, e.g. `review-v5`), then
+        "baseline" / fvk-<version>."""
+        if self.tag:
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", self.tag):
+                raise ValueError(f"config tag must be label-safe: {self.tag!r}")
+            return self.tag
         if self.variant == "baseline":
             return "baseline"
         tag = self._prompt_frontmatter().get("tag")
@@ -159,6 +168,7 @@ def load_config(path: str | Path) -> Config:
         inference=_build(InferenceCfg, raw.get("inference", {})),
         eval=_build(EvalCfg, raw.get("eval", {})),
         prompt=_build(PromptCfg, raw.get("prompt", {})),
+        tag=raw.get("tag"),
         source_path=path.resolve(),
     )
     validate(cfg)

@@ -69,6 +69,20 @@ def test_frontmatter_tag_overrides_variant_tag(tmp_path):
     assert cfg.model_label() == "deepseek-v4-flash-think__review-v5"
 
 
+def test_config_tag_overrides_baseline_label(tmp_path):
+    p = tmp_path / "cfg.yaml"
+    p.write_text("run_name: x\nvariant: baseline\ntag: baseline-replicate-v7\n"
+                 "dataset: {instance_ids: [a]}\n")
+    cfg = load_config(p)
+    assert cfg.variant_tag() == "baseline-replicate-v7"
+    assert cfg.model_label() == "deepseek-v4-flash-think__baseline-replicate-v7"
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("run_name: x\nvariant: baseline\ntag: 'no spaces!'\n"
+                   "dataset: {instance_ids: [a]}\n")
+    with pytest.raises(ValueError, match="label-safe"):
+        load_config(bad).variant_tag()
+
+
 def test_unknown_key_rejected(tmp_path):
     p = tmp_path / "cfg.yaml"
     p.write_text("run_name: x\nvariant: baseline\n"

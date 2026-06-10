@@ -1,0 +1,33 @@
+{
+  "instance_id": "astropy__astropy-14309",
+  "model_patch": "--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,7 +69,9 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n             )\n         ):\n             return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n \n \n def _decode_mixins(tbl):\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "api_model": "deepseek-v4-pro",
+      "finish_reason": "stop",
+      "content": "<patch>\n--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,7 +69,9 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n             )\n         ):\n             return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n \n \n def _decode_mixins(tbl):\n</patch>",
+      "reasoning_content": "We are given an issue: IndexError in `is_fits` function in `astropy/io/fits/connect.py`. The error occurs when `identify_format` is called with a string path without a FITS extension, and `args` is empty. The function `is_fits` does `return isinstance(args[0], ...)` without checking if args has any elements, causing IndexError.\n\nWe need to fix `is_fits` to handle cases where `args` is empty. The issue description says that when `filepath` is a string without FITS extension, the function was returning `None` before a certain commit, and now it tries to access `args[0]`. The fix should be to check if `args` is non-empty before accessing `args[0]`. Alternatively, we can restructure the logic.\n\nLooking at the `is_fits` function:\n\n```python\ndef is_fits(origin, filepath, fileobj, *args, **kwargs):\n    if fileobj is not None:\n        pos = fileobj.tell()\n        sig = fileobj.read(30)\n        fileobj.seek(pos)\n        return sig == FITS_SIGNATURE\n    elif filepath is not None:\n        if filepath.lower().endswith(\n            (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n        ):\n            return True\n    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n```\n\nWhen the `fileobj` is `None` and `filepath` is a string but doesn't end with FITS extensions, it falls through to `return isinstance(args[0], ...)`. If `args` is empty (e.g., `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})` passes `[]` as `args`), then `args[0]` raises IndexError. The fix is to ensure that we handle empty `args` safely, likely by returning `False` if `args` is empty. We could add a check: `if args and isinstance(args[0], ...)`. But also, note that `origin` might be a HDUList or other FITS object passed directly as the first argument? Actually, the signature of the identifier function is `def is_fits(origin, filepath, fileobj, *args, **kwargs)`. The `origin` is a string like \"read\" or \"write\". The actual data input might come through args? The `identify_format` function calls the identifier with `(origin, path, fileobj, *args, **kwargs)`. So `args` from the user's call is passed through. In the issue example, `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})` passes `[]` as `args`, so `*args` inside `is_fits` will be empty. In such case, we can't check `isinstance(args[0], ...)`. Perhaps the intended logic is that if `fileobj` is None and `filepath` is None, then check the first argument in `args` which might be the input data (like an HDUList). However, if both `fileobj` and `filepath` are None and `args` is empty, we cannot determine if it's a FITS file. Should return `False` in that case.\n\nThe patch should add a guard: `if args and isinstance(...)` and `return False` otherwise. But need to see the exact lines to change.\n\nCurrent code:\n\n```python\n    if fileobj is not None:\n        pos = fileobj.tell()\n        sig = fileobj.read(30)\n        fileobj.seek(pos)\n        return sig == FITS_SIGNATURE\n    elif filepath is not None:\n        if filepath.lower().endswith(\n            (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n        ):\n            return True\n    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n```\n\nWe could change to:\n\n```python\n    if fileobj is not None:\n        pos = fileobj.tell()\n        sig = fileobj.read(30)\n        fileobj.seek(pos)\n        return sig == FITS_SIGNATURE\n    elif filepath is not None:\n        if filepath.lower().endswith(\n            (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n        ):\n            return True\n    # If we got here, filepath and fileobj are both None; check if args[0] is a FITS HDU object.\n    if args and isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU)):\n        return True\n    return False\n```\n\nBut also note: the original code was doing `return isinstance(args[0], ...)` which would implicitly return the boolean result of isinstance (which would be True or False). So if args[0] exists but is not any of those, it returns False, which is fine. So our patch just needs to handle the IndexError by checking if args is non-empty, else return False.\n\nThus patch:\n\n--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,7 +69,8 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n         ):\n             return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n\nWe could also combine into a single line: `return bool(args and isinstance(args[0], ...))` but the explicit if/else is clearer.\n\nWe'll produce a patch file with that change.\n\nCheck if any imports are needed? No.\n\nThus final patch.",
+      "usage": {
+        "completion_tokens": 1456,
+        "prompt_tokens": 8193,
+        "total_tokens": 9649,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 1313,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 8192
+        },
+        "prompt_cache_hit_tokens": 8192,
+        "prompt_cache_miss_tokens": 1
+      }
+    }
+  ],
+  "wall_s": 28.3,
+  "finished_at": "2026-06-10T14:43:09Z"
+}

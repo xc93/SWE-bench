@@ -9,13 +9,14 @@ official SWE-bench docker harness; **solved** = all FAIL_TO_PASS + PASS_TO_PASS 
 Both arms always share model, instances, and sampling config — the only difference is the
 FVK system prompt. Methodology details and caveats: [DESIGN.md](DESIGN.md).
 
-_Last regenerated: 2026-06-10 14:27 UTC (auto-generated — `run.py results` to refresh)._
+_Last regenerated: 2026-06-10 14:50 UTC (auto-generated — `run.py results` to refresh)._
 
 ## Pair comparisons
 
 - **baseline: 3/10 vs fvk-v1: 4/10 (Δ +1)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v1__20260610-094051.md)
 - **baseline: 3/10 vs fvk-v2: 3/10 (Δ +0)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v2__20260610-111221.md)
 - **baseline: 3/10 vs fvk-v3: 3/10 (Δ +0)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v3__20260610-113837.md)
+- **baseline: 2/10 vs baseline-replicate-v7: 2/10 (Δ +0)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__baseline-replicate-v7__20260610-143959.md)
 - **baseline: 2/10 vs fvk-v1: 4/10 (Δ +2)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__fvk-v1__20260610-120532.md)
 - **baseline: 2/10 vs fvk-v2: 4/10 (Δ +2)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__fvk-v2__20260610-122143.md)
 - **baseline: 2/10 vs fvk-v3: 2/10 (Δ +0)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__fvk-v3__20260610-123129.md)
@@ -38,6 +39,7 @@ _Last regenerated: 2026-06-10 14:27 UTC (auto-generated — `run.py results` to 
 | [`astropy10__ds-v4-pro-think__fvk-v4__20260610-125349`](runs/astropy10__ds-v4-pro-think__fvk-v4__20260610-125349/report.md) | 2026-06-10 12:54 | `deepseek-v4-pro` +thinking | fvk-v4 | `v4` (sha `e9d27c533914`) | **4 / 10** |
 | [`astropy10__ds-v4-pro-think__review-v5__20260610-130805`](runs/astropy10__ds-v4-pro-think__review-v5__20260610-130805/report.md) | 2026-06-10 13:08 | `deepseek-v4-pro` +thinking | review-v5 | `v5` (sha `09becca148f3`) | **3 / 10** |
 | [`astropy10__ds-v4-pro-think__jointembed-v6__20260610-141549`](runs/astropy10__ds-v4-pro-think__jointembed-v6__20260610-141549/report.md) | 2026-06-10 14:16 | `deepseek-v4-pro` +thinking | jointembed-v6 | `v6` (sha `ad1565f39207`) | **4 / 10** |
+| [`astropy10__ds-v4-pro-think__baseline-replicate-v7__20260610-143959`](runs/astropy10__ds-v4-pro-think__baseline-replicate-v7__20260610-143959/report.md) | 2026-06-10 14:40 | `deepseek-v4-pro` +thinking | baseline-replicate-v7 | — | **2 / 10** |
 
 ## Environment sanity (gold-patch) runs
 

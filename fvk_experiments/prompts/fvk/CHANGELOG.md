@@ -1,5 +1,13 @@
 # FVK prompt changelog
 
+## v7 — 2026-06-10 (no prompt file; arm `baseline-replicate-v7`)
+
+Not a prompt: an independent **replicate of the pro baseline** (oracle prompt only, no
+system message) to measure run-to-run sampling variance behind all the pair deltas.
+Implemented via the config-level `tag:` override
+(`configs/astropy10__v4-pro__baseline-replicate-v7.yaml`); the original baseline run
+and its numbers are untouched.
+
 ## v5 — 2026-06-10 (`v5.md`, tag `review-v5`)
 
 **Control arm for v4** — the same fully-automatic draft → critique → regenerate
