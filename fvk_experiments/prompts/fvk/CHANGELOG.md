@@ -1,5 +1,16 @@
 # FVK prompt changelog
 
+## v3 — 2026-06-10 (`v3.md`)
+
+No distillation: the **entire kit repo verbatim** — all 117 files (806,655 chars,
+~212k tokens) at the same pinned commit `d0d07ba`, concatenated with per-file
+`========== FILE: <path> ==========` headers behind a thin one-shot adaptation wrapper
+(no toolchain/slash commands/artifact files — emulate inline; FORMALIZE → VERIFY →
+PATCH order preserved from v1/v2; task output-format instructions take precedence).
+Generated mechanically and reproducibly by `scripts/build_v3_verbatim.py` reading the
+vendored submodule via `git show` — no LLM in the loop, so no fidelity risk.
+Fits easily in DeepSeek V4's 1M context; relies on prefix caching for cost.
+
 ## v2 — 2026-06-10 (`v2.md`)
 
 Comprehensive ~10k-token distillation (36.9k chars vs v1's 6.4k) from the same kit

@@ -9,12 +9,13 @@ official SWE-bench docker harness; **solved** = all FAIL_TO_PASS + PASS_TO_PASS 
 Both arms always share model, instances, and sampling config — the only difference is the
 FVK system prompt. Methodology details and caveats: [DESIGN.md](DESIGN.md).
 
-_Last regenerated: 2026-06-10 11:19 UTC (auto-generated — `run.py results` to refresh)._
+_Last regenerated: 2026-06-10 11:46 UTC (auto-generated — `run.py results` to refresh)._
 
 ## Pair comparisons
 
 - **baseline: 3/10 vs fvk-v1: 4/10 (Δ +1)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v1__20260610-094051.md)
 - **baseline: 3/10 vs fvk-v2: 3/10 (Δ +0)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v2__20260610-111221.md)
+- **baseline: 3/10 vs fvk-v3: 3/10 (Δ +0)** — `deepseek-v4-flash`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-flash-think__baseline__20260610-092805__VS__astropy10__ds-v4-flash-think__fvk-v3__20260610-113837.md)
 
 ## All runs
 
@@ -23,6 +24,7 @@ _Last regenerated: 2026-06-10 11:19 UTC (auto-generated — `run.py results` to 
 | [`astropy10__ds-v4-flash-think__baseline__20260610-092805`](runs/astropy10__ds-v4-flash-think__baseline__20260610-092805/report.md) | 2026-06-10 09:52 | `deepseek-v4-flash` +thinking | baseline | — | **3 / 10** |
 | [`astropy10__ds-v4-flash-think__fvk-v1__20260610-094051`](runs/astropy10__ds-v4-flash-think__fvk-v1__20260610-094051/report.md) | 2026-06-10 09:53 | `deepseek-v4-flash` +thinking | fvk-v1 | `v1` (sha `540c2ababb8c`) | **4 / 10** |
 | [`astropy10__ds-v4-flash-think__fvk-v2__20260610-111221`](runs/astropy10__ds-v4-flash-think__fvk-v2__20260610-111221/report.md) | 2026-06-10 11:12 | `deepseek-v4-flash` +thinking | fvk-v2 | `v2` (sha `8c8f31b1e7b2`) | **3 / 10** |
+| [`astropy10__ds-v4-flash-think__fvk-v3__20260610-113837`](runs/astropy10__ds-v4-flash-think__fvk-v3__20260610-113837/report.md) | 2026-06-10 11:38 | `deepseek-v4-flash` +thinking | fvk-v3 | `v3` (sha `8e64c5149c8c`) | **3 / 10** |
 
 ## Environment sanity (gold-patch) runs
 
