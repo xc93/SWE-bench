@@ -17,10 +17,17 @@ patch — no system message. Treatment arms inject one frozen, versioned prompt 
 | `fvk-v3` | `v3.md` (~212k tok) | entire kit repo **verbatim**, thin one-shot wrapper — no distillation; regenerate with [scripts/build_v3_verbatim.py](scripts/build_v3_verbatim.py) |
 | `fvk-v4` | `v4.md` (~1.9k tok) | draft a candidate fix → FVK-check it (formalize + verify, findings) → regenerate |
 | `review-v5` | `v5.md` (~0.8k tok) | **control for v4**: same draft → critique → regenerate structure, plain code review, zero FVK content |
+| `jointembed-v6` | `v6.md` + [demos](prompts/demos/) (~4–9k tok/instance) | joint-embedding mimic: **per-instance** system message = short directive + 3 hand-matched solved benchmark problems (issue + gold patch) from outside the evaluated set |
 
 The subject set `astropy10` = the first 10 astropy instances of
 `SWE-bench_Verified:test` in HF row order, pinned explicitly in every config.
 "Solved" = `resolved` in the official SWE-bench evaluation harness (docker).
+
+Since v6, the system message is composed **per test instance**: the static prompt
+(`prompt.fvk_prompt`) plus, optionally, that instance's demonstrations
+(`prompt.demos`). Either part can be used alone or both together (e.g. an
+FVK-plus-demos arm is just one config setting both keys). The exact composed message
+sent to the model is always archived per instance in `runs/<id>/prompts/<iid>.system.txt`.
 
 ## Quickstart (from the SWE-bench repo root)
 
@@ -59,6 +66,15 @@ Everything is config-driven ([configs/](configs/)):
   traceable to an exact prompt. Non-FVK control prompts set frontmatter `tag:`
   (e.g. `review-v5`) to override the default `fvk-vN` arm label. Prompts are frozen
   once run: a new idea ⇒ a new `vN.md` + a CHANGELOG entry + a new config.
+- **Which demonstrations** (per-instance prompts): set `prompt.demos` to a registry
+  YAML like [prompts/demos/astropy10_demos_v1.yaml](prompts/demos/astropy10_demos_v1.yaml)
+  — per test instance, 3 picks `{id, rationale}` chosen from the benchmark **outside**
+  the evaluated set. To revise: edit the registry, then refreeze verbatim issue+patch
+  content with
+  `run.py build-demos --registry fvk_experiments/prompts/demos/<name>.yaml`
+  (writes the sibling `.content.json`, sha-stamped so a changed registry can never run
+  with stale content; the validator enforces 3 distinct picks and rejects any pick from
+  the evaluated instances). Both shas are recorded in each run's `meta.json`.
 - **Which model**: `model.name` (`deepseek-v4-flash` ⇄ `deepseek-v4-pro`),
   `model.thinking` (true/false). One config per **(subject × model × arm)**, named
   `<subject>__<model-short>__<arm>.yaml` with

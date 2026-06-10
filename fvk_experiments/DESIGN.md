@@ -39,14 +39,17 @@ fvk_experiments/
 ├── configs/                  # one YAML per (subject × model × arm) — the rerun knobs
 │   ├── astropy10__v4-flash__baseline.yaml
 │   ├── astropy10__v4-pro__fvk-v1.yaml … etc.
-├── prompts/fvk/              # versioned, frozen prompts (v1..v5) + CHANGELOG.md
+├── prompts/fvk/              # versioned, frozen prompts (v1..v6) + CHANGELOG.md
 │   └── vN.md                 # YAML frontmatter: version, date, source commit, optional tag
+├── prompts/demos/            # per-instance demonstration registries (revisable YAML)
+│   └── *.yaml + *.content.json   # picks+rationales; frozen verbatim content (build-demos)
 ├── scripts/
 │   └── build_v3_verbatim.py  # regenerates v3.md (entire kit verbatim) from the submodule
 ├── vendor/formal-verification-kit/   # git submodule pinned at the distillation commit
 ├── fvk_bench/                # small python package (uses repo .venv)
 │   ├── config.py             # YAML → dataclasses, validation, labels
 │   ├── data.py               # instance pinning + oracle-text join
+│   ├── demos.py              # per-instance demos: registry validation, content freeze, injection
 │   ├── extract.py            # pure diff extraction + hunk-count normalization (unit-tested)
 │   ├── inference.py          # DeepSeek calls (threaded, resumable, full raw provenance)
 │   ├── evaluate.py           # subprocess → swebench.harness.run_evaluation (+infra retries)
