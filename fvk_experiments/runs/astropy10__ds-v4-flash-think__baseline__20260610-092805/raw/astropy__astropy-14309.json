@@ -1,0 +1,34 @@
+{
+  "instance_id": "astropy__astropy-14309",
+  "model_patch": "--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -65,10 +65,12 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n     elif filepath is not None:\n         if filepath.lower().endswith(\n             (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n         ):\n             return True\n+        else:\n+            return False\n     return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n \n \n def _decode_mixins(tbl):\n     \"\"\"Decode a Table ``tbl`` that has astropy Columns + appropriate meta-data into\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "api_model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "content": "<patch>\n--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -65,10 +65,12 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n     elif filepath is not None:\n         if filepath.lower().endswith(\n             (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n         ):\n             return True\n+        else:\n+            return False\n     return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n \n \n def _decode_mixins(tbl):\n     \"\"\"Decode a Table ``tbl`` that has astropy Columns + appropriate meta-data into\n</patch>",
+      "reasoning_content": "We need to understand the issue: In `astropy/io/fits/connect.py`, the function `is_fits` is called with `args` from `identify_format`. The issue is that when `filepath` is a string without a FITS extension, the function reaches the last line `return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))` but `args` is an empty tuple, causing IndexError. The bug was introduced by a commit that changed the logic so that when `fileobj` is None and `filepath` is not None but doesn't end with FITS extension, it falls through to the `isinstance` check. Previously it returned None? Actually looking at the original code (the one shown): lines 67-72:\n\n```\n    elif filepath is not None:\n        if filepath.lower().endswith(\n            (\".fits\", \".fits.gz\", \".fit\", \".fit.gz\", \".fts\", \".fts.gz\")\n        ):\n            return True\n    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n```\n\nIf `filepath` is not None and does NOT end with FITS extension, the condition is False, and then it goes to the `isinstance` check. But `args` might be empty. The fix should ensure that if `filepath` is not None and does not match FITS extension, it should return False (or handle the case where args might be empty). Looking at the traceback, the user called `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})` - here `filepath` is a string, `fileobj` is None, and `args` is `[]`, so `args[0]` fails.\n\nThe solution: In the `is_fits` function, after checking filepath extension, if the filepath is provided and does not have a FITS extension, we should return False. Currently it falls through. So modify the logic: if `filepath is not None` and does NOT end with FITS extension, return False. Otherwise, if `filepath` is None (meaning fileobj might be provided or args), then check args.\n\nSo the fix is to add an `else` clause or restructure the condition. The current code: line 67-72:\n\n```\n    elif filepath is not None:\n        if filepath.lower().endswith(...):\n            return True\n    return isinstance(args[0], ...)\n```\n\nWe need to change to:\n\n```\n    elif filepath is not None:\n        if filepath.lower().endswith(...):\n            return True\n        else:\n            return False\n    return isinstance(args[0], ...)\n```\n\nBut also need to consider that `filepath` could be None and `fileobj` could be None, and `args` could be empty. In that case, the isinstance would also fail. However, the original code before the bug would also have that issue? Looking at the commit referenced (2a0c5c6...), it seems they changed something else. But the issue is specifically about filepath not matching extension. So adding the `else: return False` should fix it.\n\nWe'll produce a patch that modifies the `is_fits` function accordingly. Also note the need to handle the case when `args` is empty but both filepath and fileobj are None - but that's unlikely as per the call pattern. However, we might want to check if args is empty and return False. But the reported issue is only with filepath without extension.\n\nLet's generate a patch file that changes the logic as described.\n\nWe'll also need to consider that the line numbers in the patch relative to the file. The code provided shows line 48-72. The patch should modify lines 68-72.\n\nWe'll produce a unified diff.\n\nMake sure to quote correctly.\n\nPotential format: patch should start with `--- a/astropy/io/fits/connect.py` and `+++ b/astropy/io/fits/connect.py`. Then the changes.\n\nLet's write the patch.",
+      "usage": {
+        "completion_tokens": 1052,
+        "prompt_tokens": 8193,
+        "total_tokens": 9245,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 876,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 8193
+      }
+    }
+  ],
+  "wall_s": 13.5,
+  "finished_at": "2026-06-10T09:29:20Z",
+  "resumed": true
+}

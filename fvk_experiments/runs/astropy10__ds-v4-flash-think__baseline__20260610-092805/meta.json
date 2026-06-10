@@ -1,0 +1,29 @@
+{
+  "run_id": "astropy10__ds-v4-flash-think__baseline__20260610-092805",
+  "variant": "baseline",
+  "variant_tag": "baseline",
+  "model_label": "deepseek-v4-flash-think__baseline",
+  "model": "deepseek-v4-flash",
+  "thinking": true,
+  "fvk_prompt_path": null,
+  "fvk_prompt_version": null,
+  "fvk_prompt_sha256": null,
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-12907",
+    "astropy__astropy-13033",
+    "astropy__astropy-13236",
+    "astropy__astropy-13398",
+    "astropy__astropy-13453",
+    "astropy__astropy-13579",
+    "astropy__astropy-13977",
+    "astropy__astropy-14096",
+    "astropy__astropy-14182",
+    "astropy__astropy-14309"
+  ],
+  "started_at": "2026-06-10T09:52:57Z",
+  "finished_at": "2026-06-10T09:52:57Z",
+  "n_with_patch": 10,
+  "n_errors": 0
+}

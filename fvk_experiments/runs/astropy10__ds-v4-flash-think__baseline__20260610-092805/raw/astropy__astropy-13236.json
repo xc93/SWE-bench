@@ -1,0 +1,34 @@
+{
+  "instance_id": "astropy__astropy-13236",
+  "model_patch": "--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1240,9 +1240,15 @@ class Table:\n         # Structured ndarray gets viewed as a mixin unless already a valid\n         # mixin class\n         if (not isinstance(data, Column) and not data_is_mixin\n                 and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n+            warnings.warn(\n+                \"Structured numpy array is converted to NdarrayMixin. \"\n+                \"In the future, it will be added as a Column. \"\n+                \"Wrap the data in Column explicitly to avoid this warning.\",\n+                FutureWarning, stacklevel=2\n+            )\n             data = data.view(NdarrayMixin)\n             data_is_mixin = True\n \n         # Get the final column name using precedence.  Some objects may not\n         # have an info attribute. Also avoid creating info as a side effect.\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "api_model": "deepseek-v4-flash",
+      "finish_reason": "stop",
+      "content": "```diff\n--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1240,9 +1240,14 @@ class Table:\n         # Structured ndarray gets viewed as a mixin unless already a valid\n         # mixin class\n         if (not isinstance(data, Column) and not data_is_mixin\n                 and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n+            warnings.warn(\n+                \"Structured numpy array is converted to NdarrayMixin. \"\n+                \"In the future, it will be added as a Column. \"\n+                \"Wrap the data in Column explicitly to avoid this warning.\",\n+                FutureWarning, stacklevel=2\n+            )\n             data = data.view(NdarrayMixin)\n             data_is_mixin = True\n \n         # Get the final column name using precedence.  Some objects may not\n         # have an info attribute. Also avoid creating info as a side effect.\n```",
+      "reasoning_content": "We need to generate a patch that implements the issue: add a FutureWarning when a structured ndarray is auto-transformed into NdarrayMixin, and eventually remove that behavior. The issue says to add a FutureWarning telling the user to wrap data in Column, and that in the future (5.2) the structured array will be added as a Column. The code snippet from the issue shows the relevant block in `_convert_data_to_col` method (line 1242-1247). We need to modify that block to issue a FutureWarning.\n\nThe patch should target `astropy/table/table.py`. We'll add a warning. Also we need to consider that the warning should be issued only once? Probably per occurrence. We'll use `warnings.warn` with a FutureWarning.\n\nAdditionally, the issue mentions to \"remove this clause\" in the future, but for now we just add the warning.\n\nWe'll produce a patch that changes lines 1242-1247 in the provided code (though line numbers might be slightly off; we'll base on the given snippet). The code snippet shows lines 1242-1247 as the structured ndarray block. We'll add a warning before `data = data.view(NdarrayMixin)`.\n\nLet's construct the patch.\n\nThe original lines:\n\n```\n        # Structured ndarray gets viewed as a mixin unless already a valid\n        # mixin class\n        if (not isinstance(data, Column) and not data_is_mixin\n                and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n            data = data.view(NdarrayMixin)\n            data_is_mixin = True\n```\n\nWe'll add:\n\n```\n        # Structured ndarray gets viewed as a mixin unless already a valid\n        # mixin class\n        if (not isinstance(data, Column) and not data_is_mixin\n                and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n            warnings.warn(\n                \"Structured numpy array is converted to NdarrayMixin. \"\n                \"In the future, it will be added as a Column. \"\n                \"Wrap the data in Column explicitly to avoid this warning.\",\n                FutureWarning\n            )\n            data = data.view(NdarrayMixin)\n            data_is_mixin = True\n```\n\nBut we need to ensure `warnings` is already imported (it is at the top). Also we might want to use a specific stacklevel for the warning to point to user code. However, the issue didn't specify. We can add stacklevel=2 or similar. Let's follow common pattern: `stacklevel=2`.\n\nWe'll produce a patch file that modifies the file accordingly.\n\nAlso note that the issue says \"Add a FutureWarning here telling the user to wrap data in Column and that in the future (5.2) the structured array will be added as a Column.\" So we need to phrase accordingly.\n\nLet's produce the patch.\n\nThe patch should be in unified diff format. We'll include the file path as `a/astropy/table/table.py` and `b/astropy/table/table.py`.\n\nWe'll only modify the relevant lines. Since the provided code snippet shows lines 1242-1247, we'll reference those line numbers. But the actual file may have different line numbers. The patch will be applied based on context, so we'll use the surrounding code to ensure uniqueness.\n\nWe'll produce the patch with a context of a few lines around the change.\n\nLet's write the patch.",
+      "usage": {
+        "completion_tokens": 952,
+        "prompt_tokens": 44243,
+        "total_tokens": 45195,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 736,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 44243
+      }
+    }
+  ],
+  "wall_s": 14.8,
+  "finished_at": "2026-06-10T09:28:30Z",
+  "resumed": true
+}
