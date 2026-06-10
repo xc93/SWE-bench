@@ -6,7 +6,6 @@
 # Rerun:
 #   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-pro__jointembed-v6.yaml
 run_name: astropy10__ds-v4-pro-think__jointembed-v6
-variant: fvk
 
 dataset:
   name: princeton-nlp/SWE-bench_Verified
@@ -43,5 +42,5 @@ eval:
 
 prompt:
   style: oracle
-  fvk_prompt: prompts/fvk/v6.md                      # static directive (tag jointembed-v6)
+  system_prompt: prompts/fvk/v6.md                      # static directive (tag jointembed-v6)
   demos: prompts/demos/astropy10_demos_v1.yaml       # per-instance demonstrations

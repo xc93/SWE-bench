@@ -45,11 +45,11 @@ def cmd_run(args) -> int:
     if "eval" in stages:
         run_eval_with_retries(cfg, run_dir)
     if "report" in stages:
-        out = write_run_report(cfg, run_dir)
+        out = write_run_report(run_dir)
         from fvk_bench.report import write_results_index
         write_results_index()
         s = json.loads((run_dir / "summary.json").read_text())
-        print(f"\n=== {s['variant_tag']}: solved {s['solved_count']}/{s['n_instances']} "
+        print(f"\n=== {s['arm']}: solved {s['solved_count']}/{s['n_instances']} "
               f"=== \nreport: {out}", flush=True)
     return 0
 

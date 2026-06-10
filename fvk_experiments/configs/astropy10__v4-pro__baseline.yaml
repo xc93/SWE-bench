@@ -4,7 +4,6 @@
 # Rerun:
 #   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-pro__baseline.yaml
 run_name: astropy10__ds-v4-pro-think__baseline
-variant: baseline
 
 dataset:
   name: princeton-nlp/SWE-bench_Verified

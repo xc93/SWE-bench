@@ -1,4 +1,10 @@
-"""Per-run report.md + summary.json, and the pair-comparison report."""
+"""Per-run report.md + summary.json, pair comparisons, and the RESULTS.md index.
+
+Everything here derives from a run's FROZEN artifacts (meta.json, harness report,
+raw/ records) — never from a live config — so editing a config after a run can
+never re-label history. Readers accept both current and legacy artifact keys
+(`arm`/`variant_tag`, `prompt_*`/`fvk_prompt_*`) so old runs keep rendering.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +13,8 @@ import json
 import re
 from pathlib import Path
 
-from .config import EXP_ROOT, Config
-from .evaluate import harness_report_path, instance_report_path
+from .config import EXP_ROOT
+from .evaluate import instance_report_path
 
 
 def _today() -> str:
@@ -19,18 +25,33 @@ def _mark(v: bool | None) -> str:
     return {True: "✅ yes", False: "❌ no"}.get(v, "—")
 
 
-def collect_run_summary(cfg: Config, run_dir: Path) -> dict:
-    """Join harness report + per-instance reports + raw inference records."""
-    harness = json.loads(harness_report_path(cfg, run_dir).read_text())
+def _get(d: dict, *keys, default=None):
+    """First non-None value among (current, legacy...) artifact keys."""
+    for k in keys:
+        if d.get(k) is not None:
+            return d[k]
+    return default
+
+
+def _arm(s: dict) -> str:
+    return _get(s, "arm", "variant_tag", default="?")
+
+
+def collect_run_summary(run_dir: Path) -> dict:
+    """Join the run's meta + harness report + per-instance reports + raw records."""
     meta = json.loads((run_dir / "meta.json").read_text())
+    label = meta["model_label"]
+    ids = meta["instance_ids"]
+    run_id = meta.get("run_id", run_dir.name)
+    harness_path = run_dir / "eval" / f"{label.replace('/', '__')}.{run_id}.json"
+    harness = json.loads(harness_path.read_text())
     resolved = set(harness.get("resolved_ids", []))
-    label = cfg.model_label()
 
     instances = []
-    for iid in cfg.dataset.instance_ids:
+    for iid in ids:
         raw_p = run_dir / "raw" / f"{iid}.json"
         raw = json.loads(raw_p.read_text()) if raw_p.exists() else {}
-        irep_p = instance_report_path(run_dir.name, label, iid)
+        irep_p = instance_report_path(run_id, label, iid)
         irep = {}
         if irep_p.exists():
             try:
@@ -51,22 +72,24 @@ def collect_run_summary(cfg: Config, run_dir: Path) -> dict:
         })
 
     summary = {
-        "run_id": run_dir.name,
+        "run_id": run_id,
         "generated_at": _today(),
-        "variant": cfg.variant,
-        "variant_tag": cfg.variant_tag(),
+        "arm": _arm(meta),
         "model_label": label,
-        "model": cfg.model.name,
-        "thinking": cfg.model.thinking,
-        "fvk_prompt_version": cfg.fvk_prompt_version(),
-        "fvk_prompt_sha256": cfg.fvk_prompt_sha(),
-        "dataset": cfg.dataset.name,
-        "n_instances": len(cfg.dataset.instance_ids),
-        "solved_count": len(resolved & set(cfg.dataset.instance_ids)),
-        "resolved_ids": sorted(resolved & set(cfg.dataset.instance_ids)),
+        "model": meta.get("model"),
+        "thinking": meta.get("thinking"),
+        "prompt_version": _get(meta, "prompt_version", "fvk_prompt_version"),
+        "prompt_sha256": _get(meta, "prompt_sha256", "fvk_prompt_sha256"),
+        "demos_registry": meta.get("demos_registry"),
+        "demos_registry_sha256": meta.get("demos_registry_sha256"),
+        "demos_content_sha256": meta.get("demos_content_sha256"),
+        "dataset": meta.get("dataset"),
+        "n_instances": len(ids),
+        "solved_count": len(resolved & set(ids)),
+        "resolved_ids": sorted(resolved & set(ids)),
         "empty_patch_ids": harness.get("empty_patch_ids", []),
         "error_ids": harness.get("error_ids", []),
-        "harness_report": str(harness_report_path(cfg, run_dir)),
+        "harness_report": str(harness_path),
         "meta": meta,
         "instances": instances,
     }
@@ -74,13 +97,17 @@ def collect_run_summary(cfg: Config, run_dir: Path) -> dict:
     return summary
 
 
-def write_run_report(cfg: Config, run_dir: Path) -> Path:
-    s = collect_run_summary(cfg, run_dir)
-    fvk_line = (
-        f"- **FVK prompt**: `{cfg.prompt.fvk_prompt}` (version **{s['fvk_prompt_version']}**, "
-        f"sha256 `{(s['fvk_prompt_sha256'] or '')[:12]}…`)\n"
-        if cfg.variant == "fvk" else "- **FVK prompt**: none (baseline arm)\n"
-    )
+def write_run_report(run_dir: Path) -> Path:
+    s = collect_run_summary(run_dir)
+    if s["prompt_version"]:
+        prompt_line = (f"- **System prompt**: `{s['meta'].get('prompt_path') or s['meta'].get('fvk_prompt_path')}` "
+                       f"(version **{s['prompt_version']}**, sha256 `{(s['prompt_sha256'] or '')[:12]}…`)\n")
+    else:
+        prompt_line = "- **System prompt**: none\n"
+    demos_line = ""
+    if s.get("demos_registry"):
+        demos_line = (f"- **Demos**: `{s['demos_registry']}` (registry sha `{(s['demos_registry_sha256'] or '')[:12]}…`, "
+                      f"content sha `{(s['demos_content_sha256'] or '')[:12]}…`)\n")
     rows = "\n".join(
         f"| {i['instance_id']} | {_mark(i['patch_extracted'])} | {_mark(i['patch_applied'])} "
         f"| {_mark(i['resolved'])} | {i['n_samples']} | {i['prompt_tokens'] or '—'} "
@@ -92,9 +119,9 @@ def write_run_report(cfg: Config, run_dir: Path) -> Path:
 
 Generated: {s['generated_at']}
 
-- **Arm / variant**: `{s['variant_tag']}`
+- **Arm**: `{s['arm']}`
 - **Model**: `{s['model']}` (thinking={'on' if s['thinking'] else 'off'}), label `{s['model_label']}`
-{fvk_line}- **Dataset**: `{s['dataset']}` ({s['n_instances']} pinned instances)
+{prompt_line}{demos_line}- **Dataset**: `{s['dataset']}` ({s['n_instances']} pinned instances)
 
 ## Result: **{s['solved_count']} / {s['n_instances']} solved**
 
@@ -122,6 +149,7 @@ def write_pair_report(baseline_dir: Path, treatment_dir: Path, out_path: Path) -
     t_ids = [i["instance_id"] for i in t["instances"]]
     if b_ids != t_ids:
         raise ValueError("Runs cover different instance sets — not a valid pair")
+    b_arm, t_arm = _arm(b), _arm(t)
 
     b_model = b["model_label"].split("__")[0]
     t_model = t["model_label"].split("__")[0]
@@ -132,7 +160,7 @@ def write_pair_report(baseline_dir: Path, treatment_dir: Path, out_path: Path) -
 
     bi = {i["instance_id"]: i for i in b["instances"]}
     ti = {i["instance_id"]: i for i in t["instances"]}
-    rows, flips = [], {"both": [], "neither": [], "fvk_only": [], "baseline_only": []}
+    rows, flips = [], {"both": [], "neither": [], "treatment_only": [], "baseline_only": []}
     for iid in b_ids:
         br, tr = bi[iid]["resolved"], ti[iid]["resolved"]
         if br and tr:
@@ -140,42 +168,47 @@ def write_pair_report(baseline_dir: Path, treatment_dir: Path, out_path: Path) -
         elif not br and not tr:
             flip, key = "=", "neither"
         elif tr:
-            flip, key = "📈 fvk-only", "fvk_only"
+            flip, key = "📈 treatment-only", "treatment_only"
         else:
             flip, key = "📉 baseline-only", "baseline_only"
         flips[key].append(iid)
         rows.append(f"| {iid} | {_mark(br)} | {_mark(tr)} | {flip} |")
 
+    t_prompt = (f"`{_get(t, 'prompt_version', 'fvk_prompt_version')}` "
+                f"(sha256 `{(_get(t, 'prompt_sha256', 'fvk_prompt_sha256') or '')[:12]}…`)"
+                if _get(t, "prompt_version", "fvk_prompt_version") else "—")
+    if t.get("demos_registry"):
+        t_prompt += f" + demos `{t['demos_registry']}`"
     delta = t["solved_count"] - b["solved_count"]
-    md = f"""# Pair comparison — baseline vs {t['variant_tag']}
+    md = f"""# Pair comparison — {b_arm} vs {t_arm}
 
 Generated: {_today()}
 {cross_model_banner}
-| | baseline | {t['variant_tag']} |
+| | {b_arm} | {t_arm} |
 |---|---|---|
 | **solved_count** | **{b['solved_count']} / {b['n_instances']}** | **{t['solved_count']} / {t['n_instances']}** |
 | run_id | `{b['run_id']}` | `{t['run_id']}` |
 | model | `{b['model_label']}` | `{t['model_label']}` |
-| FVK prompt | — | `{t['fvk_prompt_version']}` (sha256 `{(t['fvk_prompt_sha256'] or '')[:12]}…`) |
+| treatment prompt | — | {t_prompt} |
 
-**solved_count_baseline = {b['solved_count']}** · **solved_count_fvk = {t['solved_count']}** · Δ = {delta:+d}
+**solved_count_baseline = {b['solved_count']}** · **solved_count_treatment = {t['solved_count']}** · Δ = {delta:+d}
 
 ## Per-instance pairs
 
-| instance_id | baseline resolved | {t['variant_tag']} resolved | flip |
+| instance_id | {b_arm} resolved | {t_arm} resolved | flip |
 |---|---|---|---|
 {chr(10).join(rows)}
 
 - Solved by both: {len(flips['both'])} · by neither: {len(flips['neither'])}
-- Solved **only with FVK**: {len(flips['fvk_only'])} {flips['fvk_only'] or ''}
-- Solved **only by baseline**: {len(flips['baseline_only'])} {flips['baseline_only'] or ''}
+- Solved **only by {t_arm}**: {len(flips['treatment_only'])} {flips['treatment_only'] or ''}
+- Solved **only by {b_arm}**: {len(flips['baseline_only'])} {flips['baseline_only'] or ''}
 
 With n={b['n_instances']} this is directional evidence, not statistical significance.
 
 ## Run reports
 
-- baseline: `{baseline_dir}/report.md`
-- {t['variant_tag']}: `{treatment_dir}/report.md`
+- {b_arm}: `{baseline_dir}/report.md`
+- {t_arm}: `{treatment_dir}/report.md`
 """
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(md)
@@ -206,8 +239,8 @@ def write_results_index(exp_root: Path = EXP_ROOT) -> Path:
         subject = a["run_id"].split("__")[0]
         delta = b["solved_count"] - a["solved_count"]
         pair_lines.append(
-            f"- **{a['variant_tag']}: {a['solved_count']}/{a['n_instances']} vs "
-            f"{b['variant_tag']}: {b['solved_count']}/{b['n_instances']} (Δ {delta:+d})** "
+            f"- **{_arm(a)}: {a['solved_count']}/{a['n_instances']} vs "
+            f"{_arm(b)}: {b['solved_count']}/{b['n_instances']} (Δ {delta:+d})** "
             f"— `{a['model']}`, {subject} — [per-instance comparison](reports/{pp.name})")
 
     run_rows = []
@@ -215,12 +248,15 @@ def write_results_index(exp_root: Path = EXP_ROOT) -> Path:
                     key=lambda x: (x.get("model", ""),
                                    (x.get("meta") or {}).get("started_at", ""))):
         started = ((s.get("meta") or {}).get("started_at") or "")[:16].replace("T", " ")
-        prompt = (f"`{s.get('fvk_prompt_version')}` (sha `{(s.get('fvk_prompt_sha256') or '')[:12]}`)"
-                  if s.get("fvk_prompt_sha256") else "—")
+        version = _get(s, "prompt_version", "fvk_prompt_version")
+        sha = _get(s, "prompt_sha256", "fvk_prompt_sha256")
+        prompt = f"`{version}` (sha `{(sha or '')[:12]}`)" if sha else "—"
+        if s.get("demos_registry"):
+            prompt += " +demos"
         think = " +thinking" if s.get("thinking") else ""
         run_rows.append(
             f"| [`{s['run_id']}`](runs/{s['run_id']}/report.md) | {started} | "
-            f"`{s['model']}`{think} | {s['variant_tag']} | {prompt} | "
+            f"`{s['model']}`{think} | {_arm(s)} | {prompt} | "
             f"**{s['solved_count']} / {s['n_instances']}** |")
 
     gold_lines = []
@@ -248,7 +284,7 @@ _Last regenerated: {_today()} (auto-generated — `run.py results` to refresh)._
 
 ## All runs
 
-| run | started (UTC) | model | arm | FVK prompt | solved |
+| run | started (UTC) | model | arm | prompt | solved |
 |---|---|---|---|---|---|
 {chr(10).join(run_rows) or '| _none yet_ | | | | | |'}
 

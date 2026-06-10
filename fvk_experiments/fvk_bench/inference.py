@@ -9,10 +9,9 @@ import datetime as dt
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import yaml
-
 from .config import Config
 from .data import load_oracle_texts, verify_instances_in_dataset
+from .demos import demos_shas, load_demo_texts
 from .extract import extract_diff
 
 
@@ -80,9 +79,8 @@ def _run_one(client, cfg: Config, iid: str, oracle_text: str, system_text: str |
                 if patch:
                     break
             rec["model_patch"] = patch or ""
-            rec["resumed"] = True
             _atomic_write(raw_path, json.dumps(rec, indent=2))
-            return rec
+            return {**rec, "resumed": True}
 
     messages = build_messages(oracle_text, system_text)
     pdir = run_dir / "prompts"
@@ -138,12 +136,11 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
     print(f"[{_now()}] verifying instances and loading oracle texts…", flush=True)
     verify_instances_in_dataset(cfg)
     texts = load_oracle_texts(cfg)
-    fvk_text = cfg.fvk_prompt_body()
-    from .demos import demos_shas, load_demo_texts
+    static_prompt = cfg.system_prompt_body()
     demo_texts = load_demo_texts(cfg)  # {} unless prompt.demos is configured
 
     def system_for(iid: str) -> str | None:
-        parts = [t for t in (fvk_text, demo_texts.get(iid)) if t]
+        parts = [t for t in (static_prompt, demo_texts.get(iid)) if t]
         return "\n\n".join(parts) if parts else None
 
     for sub in ("raw", "prompts", "eval"):
@@ -153,14 +150,13 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
 
     meta = {
         "run_id": run_dir.name,
-        "variant": cfg.variant,
-        "variant_tag": cfg.variant_tag(),
+        "arm": cfg.arm_tag(),
         "model_label": cfg.model_label(),
         "model": cfg.model.name,
         "thinking": cfg.model.thinking,
-        "fvk_prompt_path": cfg.prompt.fvk_prompt,
-        "fvk_prompt_version": cfg.fvk_prompt_version(),
-        "fvk_prompt_sha256": cfg.fvk_prompt_sha(),
+        "prompt_path": cfg.prompt.system_prompt,
+        "prompt_version": cfg.prompt_version(),
+        "prompt_sha256": cfg.system_prompt_sha(),
         **demos_shas(cfg),
         "dataset": cfg.dataset.name,
         "split": cfg.dataset.split,

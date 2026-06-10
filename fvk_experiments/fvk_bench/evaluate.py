@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .config import Config, REPO_ROOT
 
 
-def harness_report_path(cfg: Config, run_dir: Path, model_label: str | None = None) -> Path:
-    label = (model_label or cfg.model_label()).replace("/", "__")
-    return run_dir / "eval" / f"{label}.{run_dir.name}.json"
+def harness_report_path(run_dir: Path, model_label: str) -> Path:
+    return run_dir / "eval" / f"{model_label.replace('/', '__')}.{run_dir.name}.json"
 
 
 def run_eval(cfg: Config, run_dir: Path, predictions: str | None = None,
@@ -40,7 +41,7 @@ def run_eval(cfg: Config, run_dir: Path, predictions: str | None = None,
     print(f"$ {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, cwd=REPO_ROOT, check=True)
     label = "gold" if preds == "gold" else cfg.model_label()
-    report = harness_report_path(cfg, run_dir, model_label=label)
+    report = harness_report_path(run_dir, label)
     # The harness creates --report_dir but (as of this repo version) writes the
     # report into CWD; relocate it. The CWD copy is always the freshest, so it
     # overwrites any report from a previous eval of this run.
@@ -73,9 +74,6 @@ def run_eval_with_retries(cfg: Config, run_dir: Path, predictions: str | None = 
                           run_id: str | None = None) -> Path:
     """run_eval, re-running infra errors (e.g. docker pull EOF) until they clear
     or only deterministic failures (Patch Apply Failed) remain."""
-    import json
-    import time
-
     run_id = run_id or run_dir.name
     label = "gold" if predictions == "gold" else cfg.model_label()
     report = run_eval(cfg, run_dir, predictions=predictions, run_id=run_id)

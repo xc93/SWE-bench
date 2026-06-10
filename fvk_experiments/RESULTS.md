@@ -9,7 +9,7 @@ official SWE-bench docker harness; **solved** = all FAIL_TO_PASS + PASS_TO_PASS 
 Both arms always share model, instances, and sampling config — the only difference is the
 FVK system prompt. Methodology details and caveats: [DESIGN.md](DESIGN.md).
 
-_Last regenerated: 2026-06-10 14:50 UTC (auto-generated — `run.py results` to refresh)._
+_Last regenerated: 2026-06-10 15:03 UTC (auto-generated — `run.py results` to refresh)._
 
 ## Pair comparisons
 
@@ -26,7 +26,7 @@ _Last regenerated: 2026-06-10 14:50 UTC (auto-generated — `run.py results` to 
 
 ## All runs
 
-| run | started (UTC) | model | arm | FVK prompt | solved |
+| run | started (UTC) | model | arm | prompt | solved |
 |---|---|---|---|---|---|
 | [`astropy10__ds-v4-flash-think__baseline__20260610-092805`](runs/astropy10__ds-v4-flash-think__baseline__20260610-092805/report.md) | 2026-06-10 09:52 | `deepseek-v4-flash` +thinking | baseline | — | **3 / 10** |
 | [`astropy10__ds-v4-flash-think__fvk-v1__20260610-094051`](runs/astropy10__ds-v4-flash-think__fvk-v1__20260610-094051/report.md) | 2026-06-10 09:53 | `deepseek-v4-flash` +thinking | fvk-v1 | `v1` (sha `540c2ababb8c`) | **4 / 10** |

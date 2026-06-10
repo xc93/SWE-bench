@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from .config import EXP_ROOT, Config
+from .config import Config, resolve_path
 
 
 def _sha(path: Path) -> str:
@@ -23,10 +23,7 @@ def _sha(path: Path) -> str:
 
 
 def registry_path(cfg: Config) -> Path | None:
-    if not cfg.prompt.demos:
-        return None
-    p = Path(cfg.prompt.demos)
-    return p if p.is_absolute() else EXP_ROOT / p
+    return resolve_path(cfg.prompt.demos) if cfg.prompt.demos else None
 
 
 def load_registry(path: Path) -> dict:

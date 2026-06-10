@@ -5,7 +5,6 @@
 # Rerun:
 #   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-pro__baseline-replicate-v7.yaml
 run_name: astropy10__ds-v4-pro-think__baseline-replicate-v7
-variant: baseline
 tag: baseline-replicate-v7
 
 dataset:

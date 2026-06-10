@@ -24,7 +24,7 @@ The subject set `astropy10` = the first 10 astropy instances of
 "Solved" = `resolved` in the official SWE-bench evaluation harness (docker).
 
 Since v6, the system message is composed **per test instance**: the static prompt
-(`prompt.fvk_prompt`) plus, optionally, that instance's demonstrations
+(`prompt.system_prompt`) plus, optionally, that instance's demonstrations
 (`prompt.demos`). Either part can be used alone or both together (e.g. an
 FVK-plus-demos arm is just one config setting both keys). The exact composed message
 sent to the model is always archived per instance in `runs/<id>/prompts/<iid>.system.txt`.
@@ -60,7 +60,7 @@ Everything is config-driven ([configs/](configs/)):
 
 - **Which tests**: edit `dataset.instance_ids` (pin new ones with
   `run.py pin-instances --repo <repo> --n <k>`).
-- **Which prompt**: point `prompt.fvk_prompt` at `prompts/fvk/vN.md`. Prompt files
+- **Which prompt**: point `prompt.system_prompt` at `prompts/fvk/vN.md`. Prompt files
   carry YAML frontmatter (`version`, `source`, `date`); the version becomes part of the
   run label and the file's sha256 is recorded in `meta.json`/reports, so every report is
   traceable to an exact prompt. Non-FVK control prompts set frontmatter `tag:`
