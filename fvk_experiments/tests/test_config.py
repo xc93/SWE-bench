@@ -60,6 +60,15 @@ def test_fvk_prompt_version_and_body(tmp_path):
     assert cfg.fvk_prompt_sha()
 
 
+def test_frontmatter_tag_overrides_variant_tag(tmp_path):
+    prompt_file = tmp_path / "v5.md"
+    prompt_file.write_text("---\nversion: 5\ntag: review-v5\n---\n# Self-review\n")
+    cfg = load_config(_write_cfg(tmp_path, "fvk", str(prompt_file)))
+    assert cfg.fvk_prompt_version() == "v5"
+    assert cfg.variant_tag() == "review-v5"
+    assert cfg.model_label() == "deepseek-v4-flash-think__review-v5"
+
+
 def test_unknown_key_rejected(tmp_path):
     p = tmp_path / "cfg.yaml"
     p.write_text("run_name: x\nvariant: baseline\n"

@@ -95,26 +95,40 @@ class Config:
             return None
         return hashlib.sha256(p.read_bytes()).hexdigest()
 
-    def fvk_prompt_version(self) -> str | None:
-        """`version:` from the prompt frontmatter, else the filename stem."""
+    def _prompt_frontmatter(self) -> dict:
         raw = self.fvk_prompt_file_text()
         if raw is None:
-            return None
+            return {}
         m = re.match(r"\A---\n(.*?)\n---\n", raw, re.DOTALL)
-        if m:
-            try:
-                fm = yaml.safe_load(m.group(1)) or {}
-                if "version" in fm:
-                    v = str(fm["version"])
-                    return v if v.startswith("v") else f"v{v}"
-            except yaml.YAMLError:
-                pass
+        if not m:
+            return {}
+        try:
+            return yaml.safe_load(m.group(1)) or {}
+        except yaml.YAMLError:
+            return {}
+
+    def fvk_prompt_version(self) -> str | None:
+        """`version:` from the prompt frontmatter, else the filename stem."""
+        if not self.prompt.fvk_prompt:
+            return None
+        fm = self._prompt_frontmatter()
+        if "version" in fm:
+            v = str(fm["version"])
+            return v if v.startswith("v") else f"v{v}"
         return self.fvk_prompt_path().stem
 
     # ---- labels ----------------------------------------------------------
     def variant_tag(self) -> str:
+        """Arm label: `tag:` from the prompt frontmatter when present (for
+        non-FVK control prompts, e.g. `review-v5`), else fvk-<version>."""
         if self.variant == "baseline":
             return "baseline"
+        tag = self._prompt_frontmatter().get("tag")
+        if tag:
+            tag = str(tag)
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", tag):
+                raise ValueError(f"prompt frontmatter tag must be label-safe: {tag!r}")
+            return tag
         return f"fvk-{self.fvk_prompt_version()}"
 
     def model_label(self) -> str:

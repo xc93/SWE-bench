@@ -1,5 +1,25 @@
 # FVK prompt changelog
 
+## v5 — 2026-06-10 (`v5.md`, tag `review-v5`)
+
+**Control arm for v4** — the same fully-automatic draft → critique → regenerate
+three-phase structure, but Phase 2 is a plain careful code review (correctness trace,
+edge cases, regressions, intent fit, consistency) with zero FVK/formal-methods content.
+Any v4 − v5 delta isolates the FVK content from the structure; any v5 − baseline delta
+measures the structure itself. Frontmatter `tag: review-v5` keeps run labels honest
+(this is not an fvk-* arm).
+
+## v4 — 2026-06-10 (`v4.md`)
+
+Draft-first FVK loop, fully automatic in one response: **(1) DRAFT** a candidate fix
+`c`, **(2) FVK it** — emulate `/formalize` (intended contracts, generalized loop
+claims, circularities, boundary list) then `/verify` ON `c` (path walk, claim
+discharge with guardedness, side conditions, termination measure, repro case),
+recording findings, **(3) REGENERATE** the final fix from the findings and re-verify
+before emitting the patch. "The kit, in brief" section reused verbatim from v1
+(already fidelity-checked); same kit commit `d0d07ba`. Differs from v1 in being
+draft-first (v1 is spec-first: formalize → verify → patch with no committed draft).
+
 ## v3 — 2026-06-10 (`v3.md`)
 
 No distillation: the **entire kit repo verbatim** — all 117 files (806,655 chars,
