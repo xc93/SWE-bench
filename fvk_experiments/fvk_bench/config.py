@@ -57,6 +57,10 @@ class EvalCfg:
 class PromptCfg:
     style: str = "oracle"
     fvk_prompt: str | None = None  # path relative to fvk_experiments/
+    # Optional per-instance demonstrations (joint-embedding mimic): path to a
+    # demos registry YAML; its frozen .content.json gets appended to the system
+    # message per test instance. See fvk_bench/demos.py.
+    demos: str | None = None
 
 
 @dataclass
@@ -172,6 +176,12 @@ def validate(cfg: Config) -> None:
             raise FileNotFoundError(f"FVK prompt file not found: {p}")
     if cfg.variant == "baseline" and cfg.prompt.fvk_prompt:
         raise ValueError("variant 'baseline' must not set prompt.fvk_prompt")
+    if cfg.prompt.demos:
+        if cfg.variant != "fvk":
+            raise ValueError("prompt.demos requires the treatment variant 'fvk'")
+        p = Path(cfg.prompt.demos)
+        if not (p if p.is_absolute() else EXP_ROOT / p).exists():
+            raise FileNotFoundError(f"demos registry not found: {cfg.prompt.demos}")
     if not cfg.dataset.instance_ids:
         raise ValueError("dataset.instance_ids must be a non-empty pinned list")
     if cfg.prompt.style != "oracle":

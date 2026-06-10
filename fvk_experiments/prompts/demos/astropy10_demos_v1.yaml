@@ -1,0 +1,178 @@
+# Demonstration registry v1 for subject set astropy10 — joint-embedding mimic.
+# REVISABLE: edit picks/rationales here, then refreeze content with:
+#   .venv/bin/python fvk_experiments/run.py build-demos --registry fvk_experiments/prompts/demos/astropy10_demos_v1.yaml
+# Rules enforced by the validator: exactly 3 distinct picks per target; no pick
+# may be one of the evaluated instances.
+version: 1
+date: '2026-06-10'
+subject_set: astropy10
+pool: astropy instances of princeton-nlp/SWE-bench test split (85 candidates), excluding the 10 evaluated
+  astropy10 instances
+selection: 'manual semantic matching (joint-embedding mimic) by 10 parallel agents, workflow match-demos-astropy10,
+  2026-06-10; criteria: same subsystem, same root-cause shape, focused gold patch'
+content_file: astropy10_demos_v1.content.json
+demos:
+  astropy__astropy-12907:
+  - id: astropy__astropy-13032
+    rationale: 'Same astropy.modeling subsystem and same bug type: a modeling helper class (ModelBoundingBox)
+      silently produces wrong state because internal index/bookkeeping logic mishandles which inputs a
+      value applies to, fixed with a small focused patch. Teaches the transferable pattern of tracing
+      a modeling utility''s internal mapping logic and making a surgical correction, exactly like fixing
+      _cstack in separable.py.'
+  - id: astropy__astropy-14995
+    rationale: 'Closest root-cause shape: a binary-operation combiner (NDData arithmetic mask propagation)
+      has one operand-case branch wrong (checking ''operand is None'' instead of ''operand.mask is None''),
+      yielding a one-line fix. The target is the same shape — the ''&'' matrix combiner mishandles the
+      case where the right operand is an already-computed nested matrix — so this demo teaches ''find
+      the wrong branch in the two-operand combination helper and fix it minimally''.'
+  - id: astropy__astropy-12318
+    rationale: Same astropy.modeling subsystem with a silently wrong computed result (BlackBody bolometric
+      flux) that only appears when the parameter arrives already wrapped (dimensionless Quantity) versus
+      plain float — directly parallel to the target where an already-structured operand (a nested CompoundModel
+      whose matrix is precomputed) takes a buggy code path while simple models work. Teaches diagnosing
+      input-form-dependent wrong outputs in modeling classes.
+  astropy__astropy-13033:
+  - id: astropy__astropy-12880
+    rationale: 'Same timeseries context: a BinnedTimeSeries round-trip is blocked by a validation check
+      in io.ascii.ecsv that raises a ValueError (''datatype ... not in allowed values''), and the focused
+      fix adjusts that validation branch''s condition — teaching the pattern of locating an overly strict/incorrect
+      ValueError-raising guard on TimeSeries-backed table columns and reworking it.'
+  - id: astropy__astropy-13745
+    rationale: 'Closest root-cause shape: a class-invariant validation method (Latitude._validate_angles
+      in coordinates, analogous to BaseTimeSeries._check_required_columns) incorrectly raises ValueError
+      on legitimate input, fixed with a tiny edit inside the validation method — a directly transferable
+      issue-to-patch mapping for fixing a faulty validation check in a subclass.'
+  - id: astropy__astropy-8339
+    rationale: 'Same bug shape of faulty branch logic producing a confusing exception: bayesian_blocks''
+      if/elif chain misses a case, yielding a misleading UnboundLocalError, and the patch restructures
+      the if/else branches and rewrites the raised ValueError message — exactly the transform needed for
+      the target''s wrong-branch, wrong-variable error message in _check_required_columns.'
+  astropy__astropy-13236:
+  - id: astropy__astropy-13234
+    rationale: 'Same astropy.table subsystem and same data shape: structured-dtype Column serialization
+      round-trip in table/serialize.py. The target''s NdarrayMixin removal is explicitly motivated by
+      structured Column serialization now working, so this demo teaches the structured-column-in-Table
+      representation/serialization pattern with a focused patch.'
+  - id: astropy__astropy-13306
+    rationale: Table operation (vstack) failing on columns backed by numpy structured arrays — the identical
+      root-cause shape of structured dtype (dtype.names/descr) needing special-casing in table column
+      handling. Its one-line patch is a crisp transferable demonstration of branching on structured vs
+      plain dtype.
+  - id: astropy__astropy-13842
+    rationale: Gold patch edits Table._convert_data_to_col in astropy/table/table.py — the exact function
+      and data_is_mixin branch the target must modify — fixing how input data is converted to a Column/mixin
+      during table construction. Teaches both the code location and the Column-vs-mixin conversion semantics.
+  astropy__astropy-13398:
+  - id: astropy__astropy-14628
+    rationale: 'Same astropy.coordinates subsystem and the same physical concept: it adds topocentric
+      ITRS positions via EarthLocation.get_itrs(location=...), which is exactly the topocentric-offset
+      computation (itrs_coo.cartesian - location.get_itrs().cartesian) at the heart of the target''s ITRS->AltAz/HADec
+      transforms; both arise from the same satellite/near-Earth AltAz issue lineage and have small, focused
+      feature-addition patches.'
+  - id: astropy__astropy-13572
+    rationale: 'Same coordinates subsystem (earth_orientation.py) and same root-cause machinery: building
+      Earth-orientation transformation matrices from rotation_matrix products with correct unit/argument
+      handling, directly mirroring the target''s itrs_to_observed_mat composition of rotation_matrix(...,
+      ''y''/''z'', unit=u.radian) calls.'
+  - id: astropy__astropy-14371
+    rationale: Touches astropy/coordinates/matrix_utilities.py, the exact module the target imports rotation_matrix
+      and matrix_transpose from; demonstrates the transferable pattern of a focused API extension to coordinates
+      rotation-matrix tooling (adding atol to is_O3/is_rotation) with docs, matching the target's feature-request
+      shape.
+  astropy__astropy-13453:
+  - id: astropy__astropy-13734
+    rationale: 'Same io.ascii subsystem and the same per-format writer machinery: the patch edits a format-specific
+      Data.write()/Header.get_cols() pair to route column info attributes (name/unit/format) through the
+      shared str_vals() pipeline — precisely the base-class formatting path the HTML writer fails to invoke
+      in the target, making the col.info.format handling pattern directly transferable.'
+  - id: astropy__astropy-12880
+    rationale: 'Same io.ascii subsystem and root-cause shape: one specific format class (ECSV.get_cols)
+      diverges from the behavior users get elsewhere, breaking a previously-working write/read workflow,
+      and the fix is a small targeted change inside that single format class — mirroring how the target''s
+      HTML class alone ignores the formats keyword that all other ascii writers honor.'
+  - id: astropy__astropy-14365
+    rationale: 'Same io.ascii subsystem with an identical bug shape: a single format module (qdp) imposes
+      a restriction (upper-case commands) that neither QDP itself nor other astropy readers impose, fixed
+      by a minimal in-module change — teaching the ''one format-specific class misbehaves relative to
+      the ecosystem, patch only that class'' pattern needed for the target.'
+  astropy__astropy-13579:
+  - id: astropy__astropy-11693
+    rationale: 'Same astropy.wcs.wcsapi subsystem and the very same world_to_pixel_values API path: the
+      wrapper layer mishandles a non-trivial underlying WCS (non-linear distortions) so high-level world_to_pixel
+      fails. Teaches exactly where and how to patch the wcsapi wrapper''s world-to-pixel conversion, with
+      a small focused diff.'
+  - id: astropy__astropy-14295
+    rationale: 'Same wcs subsystem with the same failure mode as the target: transforms return silently
+      wrong coordinates (not a crash) because the code incorrectly discards WCS information (PV keywords
+      dropped when SIP is present), analogous to SlicedLowLevelWCS substituting wrong values for dropped
+      world axes. Teaches the pattern of restoring wrongly-dropped parameters so coupled projection terms
+      are honored.'
+  - id: astropy__astropy-13032
+    rationale: 'Root-cause shape twin: a dimension-reducing wrapper (ModelBoundingBox with ignored inputs)
+      mis-maps the remaining axis indices when some dimensions are dropped, yielding wrong per-axis results
+      - precisely the dropped-axis bookkeeping defect in SlicedLowLevelWCS with coupled PC-matrix axes.
+      Its compact patch demonstrates building an explicit kept-vs-ignored index mapping, the transferable
+      fix pattern for the target.'
+  astropy__astropy-13977:
+  - id: astropy__astropy-13638
+    rationale: 'Same subsystem and file (astropy/units/quantity.py): a Quantity dunder operator (__ilshift__)
+      raised an exception on an incompatible/unconvertible operand, and the focused fix catches the conversion/casting
+      errors and returns NotImplemented so the reflected operation (other.__rlshift__) can be tried —
+      exactly the issue-to-patch mapping the target''s __array_ufunc__ fix requires.'
+  - id: astropy__astropy-14163
+    rationale: 'Same units/numpy-interop subsystem (quantity_helper/function_helpers.py) and same root-cause
+      shape: converting an incompatible operand inside a numpy protocol path raised UnitConversionError,
+      and the patch wraps the conversion in try/except to return a graceful result (False) instead of
+      propagating — teaching the catch-UnitsError-and-degrade-gracefully pattern needed for the target.'
+  - id: astropy__astropy-7606
+    rationale: 'Units subsystem (astropy/units/core.py): Unit.__eq__ raised TypeError when coercing an
+      unsupported operand, and the patch catches (ValueError, UnitsError, TypeError) and returns NotImplemented
+      so the other operand can handle the operation — the literal raise-vs-NotImplemented deferral semantics
+      the target requests for Quantity.__array_ufunc__.'
+  astropy__astropy-14096:
+  - id: astropy__astropy-13477
+    rationale: 'Same coordinates subsystem and same file (sky_coordinate.py + baseframe.py): a dunder
+      method (__eq__) raised a confusing exception when SkyCoord/frame interact, fixed with type guards
+      and NotImplemented. Teaches the exact transferable pattern of correcting dunder exception semantics
+      in SkyCoord.'
+  - id: astropy__astropy-7166
+    rationale: 'Closest root-cause shape in the pool: class-level attribute machinery (InheritDocstrings
+      metaclass) silently mishandles property descriptors because inspect.isfunction is False for properties,
+      mirroring how SkyCoord.__getattr__ mishandles a subclass property whose getter raises AttributeError.
+      Tiny descriptor-aware fix teaches handling properties explicitly in attribute machinery.'
+  - id: astropy__astropy-7606
+    rationale: 'Same bug shape: a dunder (UnrecognizedUnit.__eq__) leaks a misleading TypeError for an
+      edge-case operand instead of correct semantics; the fix catches the internal error and returns NotImplemented.
+      Transferable pattern of making a fallback dunder surface the right exception/message rather than
+      a misleading one, as required for SkyCoord.__getattr__.'
+  astropy__astropy-14182:
+  - id: astropy__astropy-13734
+    rationale: 'Same io.ascii subsystem and the exact same feature: this is the patch that added the header_rows
+      keyword to the FixedWidth reader/writer, the parent class of RST. It demonstrates precisely the
+      header-row handling mechanics (init kwarg, write() emitting extra header lines) that the target
+      must propagate into the RST subclass.'
+  - id: astropy__astropy-14701
+    rationale: 'Same feature shape in the unified read/write registry: a request to make .write(format=...)
+      support a documentation-oriented text format (LaTeX, analogous to the target''s RST-for-docs use
+      case), solved by adding/registering a writer that delegates to an existing table writer with extra
+      formatting—teaching the transferable pattern of extending write-format support.'
+  - id: astropy__astropy-12544
+    rationale: 'Same root-cause shape of missing parameter propagation through Table I/O: a user-desired
+      option cannot be passed via the unified read/write interface, and the fix adds a new keyword argument
+      (mask_invalid) and threads it through the connect/registry layer—mirroring how header_rows must
+      be accepted and forwarded so it stops raising TypeError in the writer constructor.'
+  astropy__astropy-14309:
+  - id: astropy__astropy-12544
+    rationale: 'Same exact file and subsystem as the target: astropy/io/fits/connect.py in the unified
+      I/O (Table.read/registry) FITS connector. Its focused patch teaches the structure and argument flow
+      of the connect layer where the target''s is_fits identifier guard must be added.'
+  - id: astropy__astropy-12880
+    rationale: 'Same root-cause shape in the unified I/O read path: the issue pinpoints a specific commit
+      whose stricter logic regressed previously-working reads (ECSV datatype validation), and the fix
+      adds a small backward-compatibility guard — mirroring the target where a cited refactor commit removed
+      an early return in is_fits and the fix re-adds a defensive check.'
+  - id: astropy__astropy-14365
+    rationale: Unified I/O format reader (io.ascii.qdp) crashing with an exception on legitimate input
+      due to an over-strict assumption, fixed by a minimal one-line guard/relaxation — the same transferable
+      pattern as the target's identify_format crash on a non-FITS path with empty args, which needs a
+      graceful False/empty result instead of an IndexError.

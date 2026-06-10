@@ -26,10 +26,10 @@ def _atomic_write(path: Path, content: str) -> None:
     os.replace(tmp, path)
 
 
-def build_messages(oracle_text: str, fvk_text: str | None) -> list[dict]:
+def build_messages(oracle_text: str, system_text: str | None) -> list[dict]:
     msgs = []
-    if fvk_text:
-        msgs.append({"role": "system", "content": fvk_text})
+    if system_text:
+        msgs.append({"role": "system", "content": system_text})
     msgs.append({"role": "user", "content": oracle_text})
     return msgs
 
@@ -65,7 +65,7 @@ def _call_with_retries(client, cfg: Config, messages: list[dict]):
     raise last_err
 
 
-def _run_one(client, cfg: Config, iid: str, oracle_text: str, fvk_text: str | None,
+def _run_one(client, cfg: Config, iid: str, oracle_text: str, system_text: str | None,
              run_dir: Path, resume: bool) -> dict:
     raw_path = run_dir / "raw" / f"{iid}.json"
     if resume and raw_path.exists():
@@ -84,10 +84,10 @@ def _run_one(client, cfg: Config, iid: str, oracle_text: str, fvk_text: str | No
             _atomic_write(raw_path, json.dumps(rec, indent=2))
             return rec
 
-    messages = build_messages(oracle_text, fvk_text)
+    messages = build_messages(oracle_text, system_text)
     pdir = run_dir / "prompts"
-    if fvk_text:
-        _atomic_write(pdir / f"{iid}.system.txt", fvk_text)
+    if system_text:
+        _atomic_write(pdir / f"{iid}.system.txt", system_text)
     _atomic_write(pdir / f"{iid}.user.txt", oracle_text)
 
     t0 = time.monotonic()
@@ -139,6 +139,12 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
     verify_instances_in_dataset(cfg)
     texts = load_oracle_texts(cfg)
     fvk_text = cfg.fvk_prompt_body()
+    from .demos import demos_shas, load_demo_texts
+    demo_texts = load_demo_texts(cfg)  # {} unless prompt.demos is configured
+
+    def system_for(iid: str) -> str | None:
+        parts = [t for t in (fvk_text, demo_texts.get(iid)) if t]
+        return "\n\n".join(parts) if parts else None
 
     for sub in ("raw", "prompts", "eval"):
         (run_dir / sub).mkdir(parents=True, exist_ok=True)
@@ -155,6 +161,7 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
         "fvk_prompt_path": cfg.prompt.fvk_prompt,
         "fvk_prompt_version": cfg.fvk_prompt_version(),
         "fvk_prompt_sha256": cfg.fvk_prompt_sha(),
+        **demos_shas(cfg),
         "dataset": cfg.dataset.name,
         "split": cfg.dataset.split,
         "instance_ids": cfg.dataset.instance_ids,
@@ -170,7 +177,8 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
           f"{cfg.inference.max_workers} workers", flush=True)
     records: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=cfg.inference.max_workers) as pool:
-        futs = {pool.submit(_run_one, client, cfg, iid, texts[iid], fvk_text, run_dir, resume): iid
+        futs = {pool.submit(_run_one, client, cfg, iid, texts[iid], system_for(iid),
+                            run_dir, resume): iid
                 for iid in ids}
         done = 0
         for fut in as_completed(futs):

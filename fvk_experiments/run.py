@@ -105,6 +105,20 @@ def cmd_results(args) -> int:
     return 0
 
 
+def cmd_build_demos(args) -> int:
+    from fvk_bench.demos import build_content
+
+    out = build_content(Path(args.registry).resolve(),
+                        source_json=Path(args.source) if args.source else None)
+    data = json.loads(out.read_text())
+    sizes = {t: sum(len(p["problem_statement"]) + len(p["patch"]) for p in picks)
+             for t, picks in data["demos"].items()}
+    print(f"content frozen: {out}")
+    for t, n in sorted(sizes.items()):
+        print(f"  {t}: 3 demos, {n:,} chars (~{n // 4:,} tok)")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -138,6 +152,13 @@ def main() -> int:
 
     ps = sub.add_parser("results", help="regenerate RESULTS.md from run artifacts")
     ps.set_defaults(fn=cmd_results)
+
+    pd = sub.add_parser("build-demos",
+                        help="freeze demo content JSON from a demos registry YAML")
+    pd.add_argument("--registry", required=True)
+    pd.add_argument("--source", default=None,
+                    help="optional id->{problem_statement,patch} JSON (skips dataset download)")
+    pd.set_defaults(fn=cmd_build_demos)
 
     args = p.parse_args()
     return args.fn(args)

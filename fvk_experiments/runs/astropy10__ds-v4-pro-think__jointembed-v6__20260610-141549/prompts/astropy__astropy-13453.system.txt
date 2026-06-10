@@ -1,0 +1,469 @@
+# Demonstration-Guided Repair Directive (v6 — jointembed)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue.
+
+Below this directive you will find several **solved examples**: real issues from the same codebase that are semantically similar to the task, each paired with the exact patch that fixed it. Use them the way a retrieval system intends:
+
+- **Study each example's issue → patch mapping first**: which subsystem it touches, where the root cause sat relative to the symptom, how small the fix is, how the maintainers shaped it (guard clause vs. parameter propagation vs. dtype/rounding handling vs. serialization fix), and what the patch deliberately did *not* touch.
+- **Transfer patterns, not text.** The examples are different problems: never copy their patches, their line numbers, or their file choices blindly. What transfers is the diagnostic approach and the fix *shape*.
+- Note conventions the examples reveal about this codebase: API style, error-handling habits, how public behavior is preserved, typical patch size.
+- Then solve the new issue: locate the root cause in the provided files, apply the most fitting pattern, and keep the fix as focused as the example patches are.
+
+Constraints:
+
+- The examples are background material. **Your final answer must contain only your own patch for the new issue** — never reproduce or quote the example patches in it.
+- **Output format:** the task instructions in the user message govern the final answer's formatting — the patch format, any wrappers, and all output constraints. They take precedence over anything here.
+
+
+# Solved examples from the same codebase
+
+The following are real, already-fixed issues semantically similar to the task you will receive, each with the exact patch that fixed it. Study how each issue maps to its patch before solving the new issue.
+
+## Example 1 — astropy__astropy-13734
+
+### Issue
+
+Add option to input/output column units for fixed width tables
+Extend the `io.ascii.FixedWidth` reader to include a keyword arg that will specify that there is a row of unit specifiers after the column name specifiers (or at the top of the header if there are no column names).  This will apply for both reading and writing fixed width tables.
+
+This allows for outputting a table to a file in a format like `Table.pprint` with `show_units=True`, and then reading back that table with no information loss.
+
+### Patch that fixed it
+
+diff --git a/astropy/io/ascii/fixedwidth.py b/astropy/io/ascii/fixedwidth.py
+--- a/astropy/io/ascii/fixedwidth.py
++++ b/astropy/io/ascii/fixedwidth.py
+@@ -92,6 +92,7 @@ def get_cols(self, lines):
+             List of table lines
+ 
+         """
++        header_rows = getattr(self, "header_rows", ["name"])
+ 
+         # See "else" clause below for explanation of start_line and position_line
+         start_line = core._get_line_index(self.start_line, self.process_lines(lines))
+@@ -149,14 +150,20 @@ def get_cols(self, lines):
+                 vals, self.col_starts, col_ends = self.get_fixedwidth_params(line)
+                 self.col_ends = [x - 1 if x is not None else None for x in col_ends]
+ 
+-            # Get the header column names and column positions
+-            line = self.get_line(lines, start_line)
+-            vals, starts, ends = self.get_fixedwidth_params(line)
+-
+-            self.names = vals
++            # Get the column names from the header line
++            line = self.get_line(lines, start_line + header_rows.index("name"))
++            self.names, starts, ends = self.get_fixedwidth_params(line)
+ 
+         self._set_cols_from_names()
+ 
++        for ii, attr in enumerate(header_rows):
++            if attr != "name":
++                line = self.get_line(lines, start_line + ii)
++                vals = self.get_fixedwidth_params(line)[0]
++                for col, val in zip(self.cols, vals):
++                    if val:
++                        setattr(col, attr, val)
++
+         # Set column start and end positions.
+         for i, col in enumerate(self.cols):
+             col.start = starts[i]
+@@ -237,29 +244,44 @@ class FixedWidthData(basic.BasicData):
+     """
+     splitter_class = FixedWidthSplitter
+     """ Splitter class for splitting data lines into columns """
++    start_line = None
+ 
+     def write(self, lines):
++        default_header_rows = [] if self.header.start_line is None else ['name']
++        header_rows = getattr(self, "header_rows", default_header_rows)
++        # First part is getting the widths of each column.
++        # List (rows) of list (column values) for data lines
+         vals_list = []
+         col_str_iters = self.str_vals()
+         for vals in zip(*col_str_iters):
+             vals_list.append(vals)
+ 
+-        for i, col in enumerate(self.cols):
+-            col.width = max(len(vals[i]) for vals in vals_list)
+-            if self.header.start_line is not None:
+-                col.width = max(col.width, len(col.info.name))
+-
+-        widths = [col.width for col in self.cols]
+-
+-        if self.header.start_line is not None:
+-            lines.append(self.splitter.join([col.info.name for col in self.cols],
+-                                            widths))
++        # List (rows) of list (columns values) for header lines.
++        hdrs_list = []
++        for col_attr in header_rows:
++            vals = [
++                "" if (val := getattr(col.info, col_attr)) is None else str(val)
++                for col in self.cols
++            ]
++            hdrs_list.append(vals)
++
++        # Widths for data columns
++        widths = [max(len(vals[i_col]) for vals in vals_list)
++                  for i_col in range(len(self.cols))]
++        # Incorporate widths for header columns (if there are any)
++        if hdrs_list:
++            for i_col in range(len(self.cols)):
++                widths[i_col] = max(
++                    widths[i_col],
++                    max(len(vals[i_col]) for vals in hdrs_list)
++                )
++
++        # Now collect formatted header and data lines into the output lines
++        for vals in hdrs_list:
++            lines.append(self.splitter.join(vals, widths))
+ 
+         if self.header.position_line is not None:
+-            char = self.header.position_char
+-            if len(char) != 1:
+-                raise ValueError(f'Position_char="{char}" must be a single character')
+-            vals = [char * col.width for col in self.cols]
++            vals = [self.header.position_char * width for width in widths]
+             lines.append(self.splitter.join(vals, widths))
+ 
+         for vals in vals_list:
+@@ -300,12 +322,25 @@ class FixedWidth(basic.Basic):
+     header_class = FixedWidthHeader
+     data_class = FixedWidthData
+ 
+-    def __init__(self, col_starts=None, col_ends=None, delimiter_pad=' ', bookend=True):
++    def __init__(
++        self,
++        col_starts=None,
++        col_ends=None,
++        delimiter_pad=' ',
++        bookend=True,
++        header_rows=None
++    ):
++        if header_rows is None:
++            header_rows = ["name"]
+         super().__init__()
+         self.data.splitter.delimiter_pad = delimiter_pad
+         self.data.splitter.bookend = bookend
+         self.header.col_starts = col_starts
+         self.header.col_ends = col_ends
++        self.header.header_rows = header_rows
++        self.data.header_rows = header_rows
++        if self.data.start_line is None:
++            self.data.start_line = len(header_rows)
+ 
+ 
+ class FixedWidthNoHeaderHeader(FixedWidthHeader):
+@@ -352,7 +387,7 @@ class FixedWidthNoHeader(FixedWidth):
+ 
+     def __init__(self, col_starts=None, col_ends=None, delimiter_pad=' ', bookend=True):
+         super().__init__(col_starts, col_ends, delimiter_pad=delimiter_pad,
+-                         bookend=bookend)
++                         bookend=bookend, header_rows=[])
+ 
+ 
+ class FixedWidthTwoLineHeader(FixedWidthHeader):
+@@ -407,8 +442,22 @@ class FixedWidthTwoLine(FixedWidth):
+     data_class = FixedWidthTwoLineData
+     header_class = FixedWidthTwoLineHeader
+ 
+-    def __init__(self, position_line=1, position_char='-', delimiter_pad=None, bookend=False):
+-        super().__init__(delimiter_pad=delimiter_pad, bookend=bookend)
++    def __init__(
++        self,
++        position_line=None,
++        position_char='-',
++        delimiter_pad=None,
++        bookend=False,
++        header_rows=None
++    ):
++        if len(position_char) != 1:
++            raise ValueError(
++                f'Position_char="{position_char}" must be a ''single character'
++            )
++        super().__init__(delimiter_pad=delimiter_pad, bookend=bookend,
++                         header_rows=header_rows)
++        if position_line is None:
++            position_line = len(self.header.header_rows)
+         self.header.position_line = position_line
+         self.header.position_char = position_char
+         self.data.start_line = position_line + 1
+
+## Example 2 — astropy__astropy-12880
+
+### Issue
+
+No longer able to read BinnedTimeSeries with datetime column saved as ECSV after upgrading from 4.2.1 -> 5.0+
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+<!-- Provide a general description of the bug. -->
+Hi, [This commit](https://github.com/astropy/astropy/commit/e807dbff9a5c72bdc42d18c7d6712aae69a0bddc) merged in PR #11569 breaks my ability to read an ECSV file created using Astropy v 4.2.1, BinnedTimeSeries class's write method, which has a datetime64 column. Downgrading astropy back to 4.2.1 fixes the issue because the strict type checking in line 177 of ecsv.py is not there.
+
+Is there a reason why this strict type checking was added to ECSV? Is there a way to preserve reading and writing of ECSV files created with BinnedTimeSeries across versions? I am happy to make a PR on this if the strict type checking is allowed to be scaled back or we can add datetime64 as an allowed type. 
+
+### Expected behavior
+<!-- What did you expect to happen. -->
+
+The file is read into a `BinnedTimeSeries` object from ecsv file without error.
+
+### Actual behavior
+<!-- What actually happened. -->
+<!-- Was the output confusing or poorly described? -->
+
+ValueError is produced and the file is not read because ECSV.py does not accept the datetime64 column.
+`ValueError: datatype 'datetime64' of column 'time_bin_start' is not in allowed values ('bool', 'int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'float16', 'float32', 'float64', 'float128', 'string')`
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+The file is read using:    
+`BinnedTimeSeries.read('<file_path>', format='ascii.ecsv')`
+which gives a long error. 
+
+
+The file in question is a binned time series created by  `astropy.timeseries.aggregate_downsample`. which itself is a binned version of an `astropy.timeseries.TimeSeries` instance with some TESS data. (loaded via TimeSeries.from_pandas(Tess.set_index('datetime')). I.e., it has a datetime64 index.  The file was written using the classes own .write method in Astropy V4.2.1 from an instance of said class:   
+`myBinnedTimeSeries.write('<file_path>',format='ascii.ecsv',overwrite=True)`
+
+I'll attach a concatenated version of the file (as it contains private data). However, the relevant part from the header is on line 4:
+
+```
+# %ECSV 0.9
+# ---
+# datatype:
+# - {name: time_bin_start, datatype: datetime64}
+```
+
+as you can see, the datatype is datetime64. This works fine with ECSV V0.9 but not V1.0 as some sort of strict type checking was added. 
+
+### 
+Full error log:
+```
+---------------------------------------------------------------------------
+ValueError                                Traceback (most recent call last)
+Input In [3], in <module>
+---> 49 tsrbin = BinnedTimeSeries.read('../Photometry/tsr_bin.dat', format='ascii.ecsv')
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/timeseries/binned.py:285, in BinnedTimeSeries.read(self, filename, time_bin_start_column, time_bin_end_column, time_bin_size_column, time_bin_size_unit, time_format, time_scale, format, *args, **kwargs)
+    230 """
+    231 Read and parse a file and returns a `astropy.timeseries.BinnedTimeSeries`.
+    232 
+   (...)
+    279 
+    280 """
+    282 try:
+    283 
+    284     # First we try the readers defined for the BinnedTimeSeries class
+--> 285     return super().read(filename, format=format, *args, **kwargs)
+    287 except TypeError:
+    288 
+    289     # Otherwise we fall back to the default Table readers
+    291     if time_bin_start_column is None:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/table/connect.py:62, in TableRead.__call__(self, *args, **kwargs)
+     59 units = kwargs.pop('units', None)
+     60 descriptions = kwargs.pop('descriptions', None)
+---> 62 out = self.registry.read(cls, *args, **kwargs)
+     64 # For some readers (e.g., ascii.ecsv), the returned `out` class is not
+     65 # guaranteed to be the same as the desired output `cls`.  If so,
+     66 # try coercing to desired class without copying (io.registry.read
+     67 # would normally do a copy).  The normal case here is swapping
+     68 # Table <=> QTable.
+     69 if cls is not out.__class__:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/registry/core.py:199, in UnifiedInputRegistry.read(self, cls, format, cache, *args, **kwargs)
+    195     format = self._get_valid_format(
+    196         'read', cls, path, fileobj, args, kwargs)
+    198 reader = self.get_reader(format, cls)
+--> 199 data = reader(*args, **kwargs)
+    201 if not isinstance(data, cls):
+    202     # User has read with a subclass where only the parent class is
+    203     # registered.  This returns the parent class, so try coercing
+    204     # to desired subclass.
+    205     try:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/connect.py:18, in io_read(format, filename, **kwargs)
+     16     format = re.sub(r'^ascii\.', '', format)
+     17     kwargs['format'] = format
+---> 18 return read(filename, **kwargs)
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/ui.py:376, in read(table, guess, **kwargs)
+    374     else:
+    375         reader = get_reader(**new_kwargs)
+--> 376         dat = reader.read(table)
+    377         _read_trace.append({'kwargs': copy.deepcopy(new_kwargs),
+    378                             'Reader': reader.__class__,
+    379                             'status': 'Success with specified Reader class '
+    380                                       '(no guessing)'})
+    382 # Static analysis (pyright) indicates `dat` might be left undefined, so just
+    383 # to be sure define it at the beginning and check here.
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/core.py:1343, in BaseReader.read(self, table)
+   1340 self.header.update_meta(self.lines, self.meta)
+   1342 # Get the table column definitions
+-> 1343 self.header.get_cols(self.lines)
+   1345 # Make sure columns are valid
+   1346 self.header.check_column_names(self.names, self.strict_names, self.guessing)
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/ecsv.py:177, in EcsvHeader.get_cols(self, lines)
+    175 col.dtype = header_cols[col.name]['datatype']
+    176 if col.dtype not in ECSV_DATATYPES:
+--> 177     raise ValueError(f'datatype {col.dtype!r} of column {col.name!r} '
+    178                      f'is not in allowed values {ECSV_DATATYPES}')
+    180 # Subtype is written like "int64[2,null]" and we want to split this
+    181 # out to "int64" and [2, None].
+    182 subtype = col.subtype
+
+ValueError: datatype 'datetime64' of column 'time_bin_start' is not in allowed values ('bool', 'int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'float16', 'float32', 'float64', 'float128', 'string')
+```
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+(For the version that does not work)
+Python 3.10.2 | packaged by conda-forge | (main, Feb  1 2022, 19:28:35) [GCC 9.4.0]
+Numpy 1.22.2
+pyerfa 2.0.0.1
+astropy 5.0.1
+Scipy 1.8.0
+Matplotlib 3.5.1
+
+(For the version that does work)
+Python 3.7.11 (default, Jul 27 2021, 14:32:16) [GCC 7.5.0]
+Numpy 1.20.3
+pyerfa 2.0.0.1
+astropy 4.2.1
+Scipy 1.7.0
+Matplotlib 3.4.2
+
+### Patch that fixed it
+
+diff --git a/astropy/io/ascii/ecsv.py b/astropy/io/ascii/ecsv.py
+--- a/astropy/io/ascii/ecsv.py
++++ b/astropy/io/ascii/ecsv.py
+@@ -129,7 +129,9 @@ def get_cols(self, lines):
+         match = re.match(ecsv_header_re, lines[0].strip(), re.VERBOSE)
+         if not match:
+             raise core.InconsistentTableError(no_header_msg)
+-        # ecsv_version could be constructed here, but it is not currently used.
++
++        # Construct ecsv_version for backwards compatibility workarounds.
++        self.ecsv_version = tuple(int(v or 0) for v in match.groups())
+ 
+         try:
+             header = meta.get_header_from_yaml(lines)
+@@ -173,7 +175,11 @@ def get_cols(self, lines):
+                     setattr(col, attr, header_cols[col.name][attr])
+ 
+             col.dtype = header_cols[col.name]['datatype']
+-            if col.dtype not in ECSV_DATATYPES:
++            # Require col dtype to be a valid ECSV datatype. However, older versions
++            # of astropy writing ECSV version 0.9 and earlier had inadvertently allowed
++            # numpy datatypes like datetime64 or object or python str, which are not in the ECSV standard.
++            # For back-compatibility with those existing older files, allow reading with no error.
++            if col.dtype not in ECSV_DATATYPES and self.ecsv_version > (0, 9, 0):
+                 raise ValueError(f'datatype {col.dtype!r} of column {col.name!r} '
+                                  f'is not in allowed values {ECSV_DATATYPES}')
+
+## Example 3 — astropy__astropy-14365
+
+### Issue
+
+ascii.qdp Table format assumes QDP commands are upper case
+### Description
+
+ascii.qdp assumes that commands in a QDP file are upper case, for example, for errors they must be "READ SERR 1 2" whereas QDP itself is not case sensitive and case use "read serr 1 2". 
+
+As many QDP files are created by hand, the expectation that all commands be all-caps should be removed.
+
+### Expected behavior
+
+The following qdp file should read into a `Table` with errors, rather than crashing.
+```
+read serr 1 2 
+1 0.5 1 0.5
+```
+
+### How to Reproduce
+
+Create a QDP file:
+```
+> cat > test.qdp
+read serr 1 2 
+1 0.5 1 0.5
+<EOF>
+
+ > python
+Python 3.10.9 (main, Dec  7 2022, 02:03:23) [Clang 13.0.0 (clang-1300.0.29.30)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> from astropy.table import Table
+>>> Table.read('test.qdp',format='ascii.qdp')
+WARNING: table_id not specified. Reading the first available table [astropy.io.ascii.qdp]
+Traceback (most recent call last):
+...
+    raise ValueError(f'Unrecognized QDP line: {line}')
+ValueError: Unrecognized QDP line: read serr 1 2
+```
+
+Running "qdp test.qdp" works just fine.
+
+
+### Versions
+
+Python 3.10.9 (main, Dec  7 2022, 02:03:23) [Clang 13.0.0 (clang-1300.0.29.30)]
+astropy 5.1
+Numpy 1.24.1
+pyerfa 2.0.0.1
+Scipy 1.10.0
+Matplotlib 3.6.3
+
+### Patch that fixed it
+
+diff --git a/astropy/io/ascii/qdp.py b/astropy/io/ascii/qdp.py
+--- a/astropy/io/ascii/qdp.py
++++ b/astropy/io/ascii/qdp.py
+@@ -68,7 +68,7 @@ def _line_type(line, delimiter=None):
+     _new_re = rf"NO({sep}NO)+"
+     _data_re = rf"({_decimal_re}|NO|[-+]?nan)({sep}({_decimal_re}|NO|[-+]?nan))*)"
+     _type_re = rf"^\s*((?P<command>{_command_re})|(?P<new>{_new_re})|(?P<data>{_data_re})?\s*(\!(?P<comment>.*))?\s*$"
+-    _line_type_re = re.compile(_type_re)
++    _line_type_re = re.compile(_type_re, re.IGNORECASE)
+     line = line.strip()
+     if not line:
+         return "comment"
+@@ -306,7 +306,7 @@ def _get_tables_from_qdp_file(qdp_file, input_colnames=None, delimiter=None):
+ 
+             values = []
+             for v in line.split(delimiter):
+-                if v == "NO":
++                if v.upper() == "NO":
+                     values.append(np.ma.masked)
+                 else:
+                     # Understand if number is int or float

@@ -1,0 +1,33 @@
+{
+  "instance_id": "astropy__astropy-14309",
+  "model_patch": "--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,3 +69,5 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n             ):\n                 return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "api_model": "deepseek-v4-pro",
+      "finish_reason": "stop",
+      "content": "<patch>\n--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,7 +69,9 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n             ):\n                 return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n</patch>",
+      "reasoning_content": "We need to fix the IndexError in `is_fits` when `args` is empty. The issue: `is_fits` is called from `identify_format` with `origin`, `path`, `fileobj`, `*args`, `**kwargs`. When `identify_format` is called with `args=[]` (like in the example: `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})`), then in `is_fits`, `args` is a tuple, and `args[0]` raises IndexError if the tuple is empty.\n\nThe fix should be to check if `args` exists and has at least one element before indexing. In the example, `args` is `()` (an empty tuple). In the original code, `is_fits` returns True/False after checking filepath and fileobj. When those are None, it tries `isinstance(args[0], ...)`. If `args` is empty, it should not assume there's an element. Maybe return False? Or handle gracefully.\n\nLooking at the function: it checks `fileobj`, `filepath`, then `args[0]`. The purpose is to identify if the input could be a FITS file. The args are the positional args passed after the path and fileobj in `identify_format`. In the call coming from `identify_format`, the args are the extra args passed to the reader/writer, e.g., `identify_format(\"write\", Table, \"file\", None, [], {})`. If args is empty, it means no additional arguments were provided. The identifier should probably return False, because if no args are given, the input is not a FITS HDU object (since those would be passed as the first argument if reading from an HDU object? Actually, when reading a FITS table via `read_table_fits`, the input can be an HDUList or HDU. That would be passed as the `input` argument. But in `identify_format`, the call is `is_fits(origin, path, fileobj, *args, **kwargs)`. The `origin` indicates read/write. For read, the `path` might be a filename or an HDU object? In the example, they called `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})` \u2013 fileobj=None, args=[], kwargs={}. So the identifier is used for \"write\". For write, the identifier might get `args` containing the table to write? In `write_table_fits`, the signature is `write_table_fits(input, output, overwrite=False, append=False)`. So when identifying for write, `args` would probably be `(input, output, overwrite, append)`. But in the call from `identify_format`, it's not passing the actual table, it's just checking format. In the issue, they call `identify_format(\"write\", Table, \"bububu.ecsv\", None, [], {})`. The `args` is `[]`, which becomes an empty tuple. So `is_fits` receives `args=()`. So it crashes.\n\nThe fix: guard `args[0]` with a check `if len(args) > 0`. If len(args) == 0, then no HDU object was passed, so it's not a FITS format based on that condition. So return False.\n\nThe patch should modify `is_fits` to handle empty args. Based on the examples, the fix shape is a small guard. The provided code includes `is_fits` at line 72. So:\n\n```python\n    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n```\n\nshould be:\n\n```python\n    if args:\n        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n    return False\n```\n\nBut note that the function currently returns `True` if filepath ends with FITS extensions, else falls to `return isinstance(args[0], ...)`. If filepath is not None and doesn't end with FITS extension, it might still need to check args. But if args is empty, it should return False. That seems appropriate. Also need to consider that the function might be called with filepath=None and fileobj=None and args empty? That would crash. So adding the guard is necessary.\n\nThe issue also mentions that the commit `2a0c5c6f5b982a76615c544854cd6e7d35c67c7f` changed the behavior: previously the function returned `None` when filepath is a string without FITS extension. Now it executes `isinstance(args[0], ...)`. So the fix is to handle empty args.\n\nThus the patch will be:\n\n```\n--- a/astropy/io/fits/connect.py\n+++ b/astropy/io/fits/connect.py\n@@ -69,7 +69,9 @@ def is_fits(origin, filepath, fileobj, *args, **kwargs):\n         ):\n             return True\n-    return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    if args:\n+        return isinstance(args[0], (HDUList, TableHDU, BinTableHDU, GroupsHDU))\n+    return False\n```\n\nBut also note: the function has a docstring, but we are not changing it. That's fine. The examples show that patches are minimal, just the necessary lines.\n\nCheck if there could be a case where `args` is not empty but `args[0]` is not a HDU and we need to return False? The current code returns the result of `isinstance` which is False if not a HDU. So that's fine.\n\nThus the answer should be the patch.\n\nNow format the output as a single patch file.",
+      "usage": {
+        "completion_tokens": 1399,
+        "prompt_tokens": 13861,
+        "total_tokens": 15260,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 1268,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 384
+        },
+        "prompt_cache_hit_tokens": 384,
+        "prompt_cache_miss_tokens": 13477
+      }
+    }
+  ],
+  "wall_s": 29.7,
+  "finished_at": "2026-06-10T14:18:53Z"
+}
