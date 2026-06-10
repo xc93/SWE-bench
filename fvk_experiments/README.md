@@ -73,6 +73,8 @@ Unit tests: `.venv/bin/python -m pytest fvk_experiments/tests/ -q`
 This directory lives in a fork of [SWE-bench](https://github.com/SWE-bench/SWE-bench)
 (MIT License, © 2023 Carlos E Jimenez, John Yang, Alexander Wettig, Shunyu Yao, Kexin
 Pei, Ofir Press, Karthik R Narasimhan — see the repo-root [LICENSE](../LICENSE), which
-also covers these additions). The FVK prompt is distilled from
-[grosu/formal-verification-kit](https://github.com/grosu/formal-verification-kit) (MIT);
-source commit recorded in each prompt's frontmatter.
+also covers these additions). The FVK prompts are distilled from
+[grosu/formal-verification-kit](https://github.com/grosu/formal-verification-kit) (MIT),
+vendored as a git submodule at [vendor/formal-verification-kit](vendor/) and pinned to
+the distillation commit recorded in each prompt's frontmatter
+(`git submodule update --init` after cloning).

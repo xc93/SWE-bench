@@ -1,0 +1,3 @@
+[submodule "fvk_experiments/vendor/formal-verification-kit"]
+	path = fvk_experiments/vendor/formal-verification-kit
+	url = https://github.com/grosu/formal-verification-kit.git

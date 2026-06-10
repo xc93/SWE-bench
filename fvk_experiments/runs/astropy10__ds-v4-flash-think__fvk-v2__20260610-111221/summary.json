@@ -1,0 +1,166 @@
+{
+  "run_id": "astropy10__ds-v4-flash-think__fvk-v2__20260610-111221",
+  "generated_at": "2026-06-10 11:18 UTC",
+  "variant": "fvk",
+  "variant_tag": "fvk-v2",
+  "model_label": "deepseek-v4-flash-think__fvk-v2",
+  "model": "deepseek-v4-flash",
+  "thinking": true,
+  "fvk_prompt_version": "v2",
+  "fvk_prompt_sha256": "8c8f31b1e7b210505a450af4ffdf7ff1f873643311fe64a01674e667d180068e",
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "n_instances": 10,
+  "solved_count": 3,
+  "resolved_ids": [
+    "astropy__astropy-12907",
+    "astropy__astropy-14096",
+    "astropy__astropy-14309"
+  ],
+  "empty_patch_ids": [],
+  "error_ids": [
+    "astropy__astropy-13579",
+    "astropy__astropy-14182"
+  ],
+  "harness_report": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__ds-v4-flash-think__fvk-v2__20260610-111221/eval/deepseek-v4-flash-think__fvk-v2.astropy10__ds-v4-flash-think__fvk-v2__20260610-111221.json",
+  "meta": {
+    "run_id": "astropy10__ds-v4-flash-think__fvk-v2__20260610-111221",
+    "variant": "fvk",
+    "variant_tag": "fvk-v2",
+    "model_label": "deepseek-v4-flash-think__fvk-v2",
+    "model": "deepseek-v4-flash",
+    "thinking": true,
+    "fvk_prompt_path": "prompts/fvk/v2.md",
+    "fvk_prompt_version": "v2",
+    "fvk_prompt_sha256": "8c8f31b1e7b210505a450af4ffdf7ff1f873643311fe64a01674e667d180068e",
+    "dataset": "princeton-nlp/SWE-bench_Verified",
+    "split": "test",
+    "instance_ids": [
+      "astropy__astropy-12907",
+      "astropy__astropy-13033",
+      "astropy__astropy-13236",
+      "astropy__astropy-13398",
+      "astropy__astropy-13453",
+      "astropy__astropy-13579",
+      "astropy__astropy-13977",
+      "astropy__astropy-14096",
+      "astropy__astropy-14182",
+      "astropy__astropy-14309"
+    ],
+    "started_at": "2026-06-10T11:12:45Z",
+    "finished_at": "2026-06-10T11:16:03Z",
+    "n_with_patch": 10,
+    "n_errors": 0
+  },
+  "instances": [
+    {
+      "instance_id": "astropy__astropy-12907",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": true,
+      "prompt_tokens": 14881,
+      "completion_tokens": 2313,
+      "wall_s": 32.5
+    },
+    {
+      "instance_id": "astropy__astropy-13033",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": false,
+      "prompt_tokens": 13196,
+      "completion_tokens": 3581,
+      "wall_s": 42.7
+    },
+    {
+      "instance_id": "astropy__astropy-13236",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": false,
+      "prompt_tokens": 53927,
+      "completion_tokens": 986,
+      "wall_s": 16.1
+    },
+    {
+      "instance_id": "astropy__astropy-13398",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": false,
+      "prompt_tokens": 18801,
+      "completion_tokens": 2246,
+      "wall_s": 28.6
+    },
+    {
+      "instance_id": "astropy__astropy-13453",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": false,
+      "prompt_tokens": 18421,
+      "completion_tokens": 3891,
+      "wall_s": 44.8
+    },
+    {
+      "instance_id": "astropy__astropy-13579",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": null,
+      "resolved": false,
+      "prompt_tokens": 16390,
+      "completion_tokens": 9780,
+      "wall_s": 123.2
+    },
+    {
+      "instance_id": "astropy__astropy-13977",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": false,
+      "prompt_tokens": 35841,
+      "completion_tokens": 4270,
+      "wall_s": 55.4
+    },
+    {
+      "instance_id": "astropy__astropy-14096",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": true,
+      "prompt_tokens": 36619,
+      "completion_tokens": 12811,
+      "wall_s": 155.7
+    },
+    {
+      "instance_id": "astropy__astropy-14182",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": null,
+      "resolved": false,
+      "prompt_tokens": 12748,
+      "completion_tokens": 5477,
+      "wall_s": 73.6
+    },
+    {
+      "instance_id": "astropy__astropy-14309",
+      "patch_extracted": true,
+      "n_samples": 1,
+      "inference_error": null,
+      "patch_applied": true,
+      "resolved": true,
+      "prompt_tokens": 17877,
+      "completion_tokens": 2017,
+      "wall_s": 24.6
+    }
+  ]
+}

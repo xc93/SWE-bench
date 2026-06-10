@@ -11,6 +11,7 @@ rate. Keep upstream `swebench/` unmodified — all experiment code lives in `fvk
 - `fvk_experiments/DESIGN.md` — experiment design decisions + evidence (read before changing methodology)
 - `fvk_experiments/README.md` — rerun commands and config knobs
 - Prompts are versioned: `fvk_experiments/prompts/fvk/vN.md` (frontmatter: version/date/source commit; sha256 recorded in every run's `meta.json`). New prompt ⇒ new `vN.md` + new config + CHANGELOG entry; never edit a frozen version.
+- The kit itself is a submodule at `fvk_experiments/vendor/formal-verification-kit`, pinned to the commit prompts were distilled from (`git submodule update --init`). Distill new prompt versions from the submodule (read files via `git -C <submodule> show <ref>:<path>` for pinned reads).
 
 ## Environment
 
