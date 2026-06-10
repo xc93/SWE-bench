@@ -1,0 +1,287 @@
+# FVK Methodology Directive (v2)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue. Before emitting any patch, apply the Formal Verification Kit (FVK) methodology below. You have **no** access to the FVK repository, no K toolchain (`kompile`/`krun`/`kprove`), and no slash commands — so **emulate** the kit's `/formalize` and `/verify` workflow entirely within your own reasoning and your visible answer (subject to the output constraints in the task instructions). Your formal artifacts are precise specifications and proof walkthroughs **written in K notation** — actual `claim`s over symbolic variables, with `requires`/`ensures` side conditions and the `[simplification]` lemmas they need — not runnable `.k` files. Part I below is the K knowledge base those artifacts must draw on; Part II is the required procedure.
+
+## Part I — K knowledge base
+
+### K framework and configurations
+
+K is a framework for **rewrite-based executable semantics**: write a language's syntax and rules once; the same definition both executes and verifies. A rule `LHS => RHS` is simultaneously an execution step and a logical statement; a `claim LHS => RHS` is a **reachability property** — "every (or some) execution from `LHS` reaches `RHS`." Proving = symbolic execution (rewriting with logical variables) + discharging arithmetic/map side conditions; a proved claim reduces to **`#Top`** (matching-logic "true"); anything else is a residual obligation.
+
+A definition is a set of `module`s: a `*-SYNTAX` module (BNF) plus a same-named main module (configuration + rules).
+
+```k
+module MINI-PYTHON-SYNTAX
+  imports INT-SYNTAX
+  imports BOOL-SYNTAX
+  imports ID-SYNTAX
+
+  syntax IExp ::= Id | Int
+                | "(" IExp ")"      [bracket]              // parsing only, no node
+                > IExp "+" IExp     [seqstrict, left]      // > = lower precedence; left assoc
+                | Id "(" IExps ")"  [strict(2)]
+
+  syntax KResult ::= Int | Bool | Ints                     // the "fully evaluated" sorts
+endmodule
+```
+
+**`strict`/`seqstrict`**: evaluation order, auto-generating heating/cooling; `strict(2)` = evaluate only the 2nd argument (here the arg list) before the rule applies. **`left`**: associativity. **`bracket`**: grouping only, no AST node. **`token`**: literal lexes as a terminal (`syntax Id ::= "$a" [token]`); lowercase `Id` program vars never collide with uppercase/`?`-prefixed logical variables. **`KResult`**: the *value* sorts checked via `isKResult`; wrong `KResult` ⇒ heating never stops or stops too early.
+
+The main module declares the **configuration** — the program state, a tuple of named **cells** — plus the rewrite rules:
+
+```k
+module MINI-PYTHON
+  imports MINI-PYTHON-SYNTAX
+  imports INT     // +Int, -Int, *Int, <=Int, /Int, modInt, ...
+  imports BOOL    // andBool, orBool, notBool, ...
+  imports MAP     // M[K <- V] update,  K |-> V binding,  .Map empty
+  imports LIST    // ListItem(_),  .List empty
+
+  configuration
+    <k> $PGM:Stmt </k>        // the computation: a ~>-separated list of work
+    <store> .Map  </store>    // program variables   Id |-> Int
+    <funcs> .Map  </funcs>    // function table       Id |-> (def ...)
+    <stack> .List </stack>    // call stack of saved (continuation, store)
+
+  rule <k> I1:Int + I2:Int => I1 +Int I2 ... </k>          // builtin INT
+  rule <k> X:Id => V ... </k>  <store> ... X |-> V ... </store>
+endmodule
+```
+
+`<k>` holds the *computation* as a `~>`-separated list: `~>` = cons ("then"), `.K` = the empty computation, `$PGM` = the program being run.
+
+### Matching logic and patterns
+
+One logic for terms and formulas: **a pattern denotes a set**. Fix a carrier `M`; every pattern `φ` denotes `|φ| ⊆ M`, the elements matching it. A term (`5`, `cons(x, xs)`) has a singleton set (or empty, if a partial application); a formula (`x = 5`) has set `M` (true) or `∅` (false). Terms and formulas differ only in set size — a program configuration and a logical constraint live in the *same* formula. Connectives are set operations: `⊥` = `∅`, `⊤` = `M`, `∧` = `∩`, `∨` = `∪`, `¬` = complement, `∃x. φ` = union over witnesses, `φ₁ → φ₂ ≡ ¬φ₁ ∨ φ₂`, `∀x. φ ≡ ¬∃x. ¬φ`. A pattern is **valid** iff its set is all of `M`. `∃` mixes with structure: `∃x. cons(x, nil)` = "all one-element lists". A **symbol** is a relation lifted to powersets; **application is pointwise**: `|σ(φ)| = ⋃ { |σ|(a) : a ∈ |φ| }`. Special shapes, not primitives: **function** = singleton per argument tuple; **partial function** may return `∅` (`head(nil)` undefined, no error value); **relation** = any subset. K builtins/map operators are symbols; **a configuration cell is a symbol applied to its contents**.
+
+**Definedness ladder — equality, membership, sorts (all derived).** The one ingredient beyond FOL-style syntax: a **definedness symbol** `⌈_⌉` with axiom `⌈x⌉ = ⊤` (for a variable `x`). `⌈φ⌉` = "φ is defined" (matches something): its set is `M` when `|φ| ≠ ∅`, else `∅`. Derived, not assumed:
+
+- **Totality**: `⌊φ⌋ ≡ ¬⌈¬φ⌉` — φ matches everything.
+- **Equality**: `φ₁ = φ₂ ≡ ⌊φ₁ ↔ φ₂⌋` — **two-valued** (set is `M` or `∅`), which FOL `↔` cannot express (pointwise agreement ≠ set equality). This makes `#Equals` in K a real equality.
+- **Membership**: `x ∈ φ ≡ ⌈x ∧ φ⌉`.
+- **Sorts**: sort `s` = inhabitant symbol `⟦s⟧` whose set is that sort's elements; "φ has sort s" is `φ → ⟦s⟧`. Sorts are patterns too.
+
+**Mu-logic: fixpoints give recursion, reachability, induction.** Add **set variables** `X` (over subsets of `M`) and the **least-fixpoint binder** `μX. φ`, well-formed when `X` occurs **only positively** (under an even number of `¬`). Positivity ⇒ `S ↦ |φ|[X := S]` monotone ⇒ a Knaster–Tarski least fixpoint exists; greatest fixpoint derived: `νX. φ ≡ ¬μX. ¬φ[¬X/X]`. Fixpoints define recursive data (`μX. nil ∨ (∃Y. cons(Y, X))`), inductive predicates, and **reachability** (`◇φ`, "eventually φ") — and give **induction**. The Circularity rule of reachability proofs is fixpoint reasoning in disguise. Proof system (sound, relatively complete): propositional + Modus Ponens; ∃-intro/elim + Generalization; **Frame** (propagate a proof under a symbol context); **Propagation** (`σ(φ₁ ∨ φ₂) = σ(φ₁) ∨ σ(φ₂)`, `σ(⊥) = ⊥`); **Pre-Fixpoint** `φ[μX.φ / X] → μX.φ` + **Knaster–Tarski** `φ[ψ/X] → ψ ⊢ μX.φ → ψ` (= induction). Other logics embed as **theories**, not extensions: FOL(+LFP), modal/temporal (LTL/CTL as fixpoints), separation logic (`*`/`−*`, μ heap predicates), **reachability logic** (`φ ⇒ φ'` rules — the basis of K proofs), λ-calculus.
+
+**A K claim is a matching-logic reachability formula.** A K **configuration** is a pattern (cells are symbols); a K **claim** `<k> LHS => RHS …</k> requires P ensures Q` is a **reachability formula** between patterns. Prover vocabulary: `#And` = `∧`, `#Or` = `∨`, `#Not` = `¬`, `#Exists` = `∃`, `#Equals` = the derived two-valued `=`, `#Top` = `⊤` — always-valid; the **success token**: a goal or side condition reduced to `#Top` is discharged.
+
+### Rewrite rules
+
+Rules rewrite with `=>`; `...` in a cell = "rest unchanged" (`<k> X => V ... </k>` rewrites only the head of the computation; the store pattern `<store> ... X |-> V ... </store>` matches `X` anywhere in the map); unmentioned cells are untouched. **`requires`** gates a rule: `rule <k> I1 / I2 => I1 /Int I2 ... </k> requires I2 =/=Int 0`. `/Int` **truncates toward zero** (`divInt` floors toward negative infinity).
+
+**Strictness ⇒ heating/cooling (the small-step engine).** `strict`/`seqstrict` auto-generate `[heat]`/`[cool]` rules — never hand-write stepping (simplified):
+
+```k
+rule <k> HOLE +  E2:IExp => HOLE ~>  [] + E2 ... </k> requires notBool isKResult(HOLE) [heat]
+rule <k> E1:IExp  + HOLE => HOLE ~> E1 +  [] ... </k> requires isKResult(E1)            [heat]   // seqstrict: left first
+rule <k> HOLE ~>  [] + E2:IExp => HOLE +  E2 ... </k>                                   [cool]
+rule <k> HOLE ~> E1:IExp +  [] => E1  + HOLE ... </k>                                   [cool]
+```
+
+`HOLE` is the term under evaluation. `seqstrict` orders arguments left-then-right by gating the second heat on `isKResult(E1)`; plain `strict` is order-nondeterministic. Nested expressions reduce one operator at a time at the head of `<k>`; you write only value-level rules. Gotcha: `while` must keep an **unevaluated** guard copy frozen (inside e.g. `#whileLoop(B, S)`) and evaluate a **fresh** copy at the head of `<k>`; heating rewrites only the head, so the frozen copy survives for re-check next iteration.
+
+**Argument lists must cool to a KResult (the Bot/Bots trick).** Evaluated arguments (`Int`s = `KResult`s), parameters (`Id`s), and source expressions (`IExp`s) need a *shared list spine* so the seqstrict argument list can cool to an `Ints` `KResult`:
+
+```k
+syntax Bot
+syntax Bots  ::= List{Bot,  ","} [klabel(exps)]
+syntax Ints  ::= List{Int,  ","} [klabel(exps)] | Bots   // evaluated args, a KResult
+syntax Ids   ::= List{Id,   ","} [klabel(exps)] | Bots   // parameters
+syntax IExps ::= List{IExp, ","} [klabel(exps), seqstrict] | Ints | Ids
+```
+
+The shared `[klabel(exps)]` makes `Ints` and `Ids` subsorts of the strict `IExps`, so an evaluated `IS:Ints` is a legal call argument and `.Bots` is the empty terminator usable as both `.Ids` and `.Ints`. Two engineering gotchas: missing **KResult subsorting** for argument lists ⇒ the arg list never cools, the call rule can't fire, evaluation stalls. **Sequencing parse ambiguity**: `Stmt Stmt [left]` must bind looser than suite-headed/leaf statements; a `Suite` (`INDENT Stmt DEDENT`) must be self-delimiting (sequencing last in the `>` block), else the parser can't tell where a `while`/`def` body ends.
+
+### Reachability claims as specs
+
+A **reachability rule** is a pair of configuration patterns
+
+```k
+    φ  ⇒  φ'
+```
+
+read: *every (terminating) execution starting from a state matching `φ` reaches a state matching `φ'`*. Each `φ` is a matching-logic pattern — a symbolic configuration `⟨…⟩` (the K cells: `<k>`, `<store>`, …) conjoined with a first-order side constraint (`#And` a `requires`).
+
+This is exactly a Hoare triple `{Pre} code {Post}` recast so the **code itself lives inside the pattern** (in the `<k>` cell) rather than being a separate syntactic object. Consequences:
+
+- **One operational semantics serves both execution and proof.** The same rewrite rules that run a program are the axioms you reason with — no separate axiomatic/Hoare semantics to write and keep in sync (a classic soundness-bug source). `φ ⇒ φ'` is "the semantics, run symbolically, from `φ`, lands in `φ'`."
+- Pre/postconditions, frame conditions, and program text are all parts of one pattern, manipulated by one set of rules.
+
+A K `claim` *is* a reachability rule. A typical spec module has two: the function contract (e.g. `(SUM)`) and the loop circularity (e.g. `(LOOP)`).
+
+### Writing specs: contracts, requires/ensures
+
+Spec-file shape: a `VERIFICATION` module plus a spec module of `claim`s:
+
+```k
+requires "mini-python.k"
+
+module VERIFICATION
+  imports MINI-PYTHON
+  imports MAP-SYMBOLIC             // symbolic reasoning over maps (extensionality etc.)
+  imports K-EQUAL                  // #Equals and friends
+  // ... simplification lemmas go here ...
+endmodule
+
+module MINI-PYTHON-SPEC
+  imports VERIFICATION
+  // ... claims go here ...
+endmodule
+```
+
+A **claim** is configuration-shaped; cells carry `=>` rewrites and symbolic variables:
+
+```k
+claim
+  <k> while i <= n : INDENT s += i  i += 1 DEDENT => .K ... </k>
+  <store>
+    s |-> (S:Int => S +Int (I +Int N) *Int (N -Int I +Int 1) /Int 2)
+    i |-> (I:Int => N +Int 1)
+    n |-> N:Int
+  </store>
+  requires I <=Int N +Int 1
+  [all-path]
+```
+
+- `<k> LHS => RHS ...`: execution from `LHS` reaches `RHS`; `=> .K` = "and terminates".
+- Store rewrite `x |-> (OLD => NEW)`; untouched bindings constrain the input.
+- **`requires`** = **precondition** on symbolic inputs.
+- **`ensures`** = **postcondition** after execution; `?`-existentials = "some value exists": `?C:Int` in the configuration plus `ensures (?C ==Int A) orBool (?C ==Int B)`; `<funcs> .Map => ?_:Map` = "some unconstrained map."
+- **`[all-path]`**: **every** path from `LHS` reaches `RHS`; **`[one-path]`**: **some** path does.
+- Use uppercase math variables (`S`, `I`, `N`) for logical values and lowercase (`s`, `i`, `n`) for program variables so they never clash.
+
+A **function contract** is a reachability claim `φ_pre ⇒ φ_post`: the left-hand `<k>` defines the function and calls it on a **symbolic argument**; `requires` states the precondition; the rewritten cell values on the right state the postcondition — the result binding execution must reach. Canonical instance (sum function): precondition `requires N >=Int 0`; postcondition `result |-> N *Int (N +Int 1) /Int 2`. Postconditions land in the store as `STORE [ result <- V ]`: without the map-extensionality lemma (below) the `ensures`/post-store goal stays open.
+
+### Invariants as generalized loop claims with side conditions
+
+For each loop, write a **loop-invariant claim** — shaped like the `(LOOP)` claim above — that is:
+
+- **Generalized over the accumulator and counter** (every moving variable): do not pin them to their entry values; make them symbolic (`S`, `I`). The claim must describe the loop from *any* reachable intermediate state, because the proof re-enters it mid-loop.
+- **Carrying the loop's closed-form effect in the postcondition**: from counter `i = I`, the sum loop adds `Σ_{k=I}^{N} k = (I+N)·(N−I+1)/2` to `s` and leaves `i = N+1`. (Equivalent closed forms: `(I+N)*(N-I+1)/2 = (N*(N+1) - (I-1)*I)/2`; at `I = 1` both equal `N*(N+1)/2`.) This closed form, generalized over the accumulator/counter, plays the role the classical hand-written loop invariant used to play.
+- **Guarded by the soundness side condition bounding the counter through the loop**, e.g. `requires I <=Int N +Int 1`. Not cosmetic: without it the claim is *false* — for `I ≥ N+2` the body never runs so the true sum is `0`, yet the closed form `(I+N)·(N−I+1)/2` goes negative (`N=0, I=2` gives `−1`; `N=1, I=3` gives `−2`).
+
+The spec module may also need `[simplification]` rules for the arithmetic (map extensionality, exact halving of an even product — below).
+
+### The reachability proof system (seven rules)
+
+Prove `A ⊢ φ ⇒ φ'` (semantics `A` entails the rule) with seven rules. Six are "symbolic execution + glue"; the seventh, Circularity, is the key.
+
+- **Reflexivity**: `A ⊢ φ ⇒ φ` — the empty (zero-step) execution. Guardedness bites exactly here: the circularity hypothesis is **forbidden** from closing a goal via Reflexivity alone (zero progress); it becomes available only on a goal that has already strictly advanced.
+- **Axiom (+ framing)**: apply one semantic rule `φ_l ⇒ φ_r ∈ A` (with a substitution). Framing carries the untouched parts — rest of the `<k>` computation, unmentioned store bindings, the side constraint — unchanged around the step (in K: automatic `...` cell-completion). `seqstrict` heating/cooling rules are themselves auto-generated semantic rules, applied *via* Axiom — not a separate proof rule.
+- **Transitivity**: from `A ⊢ φ ⇒ φ₁` and `A ⊢ φ₁ ⇒ φ'`, get `A ⊢ φ ⇒ φ'`. Chains steps.
+- **Consequence**: strengthen the pre / weaken the post via a **first-order implication**: if `φ → φ₀`, `A ⊢ φ₀ ⇒ φ₀'`, `φ₀' → φ'`, then `A ⊢ φ ⇒ φ'`. This is where arithmetic VCs are dispatched — normally by an SMT oracle or `[simplification]` lemmas; in your emulation, by explicit hand algebra.
+- **Case Analysis**: split a goal whose precondition is a disjunction `φ ≡ φ₁ #Or φ₂`; prove each branch — e.g. loop guard `true` vs `false`.
+- **Abstraction**: existentially quantify away variables occurring in the precondition but **not** the postcondition (e.g. overwritten initial values `∃S₀,I₀` — gone from the post once the loop has run).
+- **Circularity**: use a rule as its own hypothesis (next section).
+
+### Circularities and guardedness
+
+```k
+    A ∪ {φ ⇒ φ'}  ⊢  φ ⇒ φ'
+    ─────────────────────────
+        A  ⊢  φ ⇒ φ'
+```
+
+You may **assume the very rule you are proving** while proving it — *provided* you only ever use that hypothesis **after at least one genuine `=>⁺` step** (one real semantic transition). This proviso is **guardedness**, and it makes the otherwise-circular argument a sound **guarded coinduction**: every appeal to the hypothesis is "paid for" by real progress, so you can never discharge the goal with zero work. Enforcement: the hypothesis may not close a goal via Reflexivity alone; it is available only on a goal that has strictly advanced by at least one genuine step. That single side condition is the whole soundness story. In K, **every `claim` in the module is automatically a circularity available as a coinduction hypothesis**.
+
+**It replaces the loop invariant.** Classically you invent `Inv`, prove it established, preserved by the body, and implying the post on exit. Instead, the loop's **own reachability claim is the coinductive hypothesis**: run the loop one step (evaluating the guard is the genuine `=>⁺` step that earns the hypothesis), case-split on the guard, and in the body-taken branch you reach the same loop in a shifted state, where you **invoke the claim on itself** — after one iteration the proof reaches a state matching the claim, and the hypothesis closes it.
+
+Illustration on the `(LOOP)` claim above: guard evaluation discharges guardedness. **Body-taken branch** (guard true, added to the path condition): symbolically execute the body, then invoke `(LOOP)` on the shifted state `{S := S+I, I := I+1}`, re-checking its side condition there. **Exit branch** (guard false): the negated guard pins the counter (`I = N+1`); substituting it collapses the postcondition's closed form (the empty remaining sum is `0`).
+
+**Recursion uses the same principle.** A recursive function has no loop but has a back-edge: the recursive call. The **function's own contract is the coinductive hypothesis** — `f(N) ⇒ result(N)` discharges its inner call `f(N−1)`. Guardedness comes from the **`call` step** (entering the body) taken before the hypothesis is reused, exactly as guard evaluation does for a loop; the **base case** is the exit branch. E.g. claim `(REC)`: `sum_recursive(N) ⇒ N*(N+1)/2` (side condition `N ≥ 0`) discharges `sum_recursive(N−1)` on the recursive branch, with `n == 0` as base case. So for a recursive function, write a **function-contract circularity** — generalized over the symbolic argument(s), with the soundness precondition — instead of a loop claim.
+
+### Nested loops, recursion, and proof composition
+
+**Nested loops nest their circularities**: one `claim` per loop, the **inner used as a lemma by the outer** (just as a recursive function's contract is reused by its caller) — e.g. claims `(SORT)`/`(OUTER)`/`(INNER)` for an insertion sort. Likewise, state the loop invariant *as a claim* and let the function-contract claim **reuse it as a lemma**.
+
+**Compose the function-level proof via Transitivity**: `def` files the function → `call` binds parameters in a fresh scope → body initialization → **the loop, via its circularity used as a lemma** (instantiate it at the loop-entry state, e.g. `{S := 0, I := 1}`, discharging its precondition there) → `return` pops the frame and delivers the value. Result: `A ⊢ φ_pre ⇒ φ_post`.
+
+### Discharging verification conditions: lemmas and tiers
+
+Consequence steps generate first-order **verification conditions (VCs)**. **`[simplification]`**: user lemmas applied wherever their LHS matches (not completed to the top of the configuration) — the verification-condition oracle supplying arithmetic/map facts for side-condition discharge. A lemma fires only when the current side condition *implies* its `requires`; you own its soundness (it must preserve definedness). **`[trusted]`**: assume a claim proven without proof (sparingly: staging/axioms — never to hide an obligation).
+
+```k
+// map extensionality: closes the post-store implication (result <- V)
+rule { M:Map [ K <- V ] #Equals M:Map [ K <- V' ] } => { V #Equals V' } [simplification]
+
+// exact halving of an always-even product of consecutive integers
+rule (X:Int *Int (X +Int 1)) /Int 2 *Int 2 => X *Int (X +Int 1) [simplification]
+rule ((A:Int +Int B:Int) *Int C:Int) /Int 2 *Int 2 => (A +Int B) *Int C
+  requires ((A +Int B) *Int C) modInt 2 ==Int 0 [simplification]
+```
+
+(The braces in the extensionality lemma are the definedness-braced predicate form.) Discharge VCs in two tiers:
+
+- **Linear facts** — routine (an SMT solver's job; by hand, simple algebra): `N ≥ 0 ⇒ 1 ≤ N+1`, side-condition preservation `I ≤ N ⇒ I+1 ≤ N+1`, zero-factor simplifications and exits.
+- **Symbolic products under truncating `/Int` (nonlinear / division-by-even)** — need explicit `[simplification]` lemmas. **VC-EXACT**: a product of two consecutive integers is even, so every `/Int 2` is *exact*, and `(A − B)/2 = A/2 − B/2` holds on the even subgroup. Typical instances: the loop-step VC `I + cf(I+1,N) = cf(I,N)` needs this; the exit VC (zero factor) and the init VC (`cf(1,N) = N*(N+1)/2`) fall to linear algebra once map extensionality reduces the cell-level `#Equals` to a scalar one. Because `/Int` truncates, even `(P /Int 2) *Int 2 = P` needs the evenness lemma.
+
+### Lists, arrays, and spec-only abstraction functions
+
+Model lists/arrays with builtin `List` (a *value* sort): `size(L)`, read `L[I]`, update `L[I <- V]`. A value, not a heap reference — copy semantics and **non-aliasing** are free: `list(L)` is identity; index-assign rebinds to a new `List` (generalize evaluated-args lists from `Int` to `KResult` to pass one). A postcondition need not be a closed form: for **relational** postconditions (*sorted*, *permutation*) declare **spec-only abstraction functions** `[function]` in `VERIFICATION`, used in `ensures`: `isSorted(List)` (inductive `Bool`), `bag(List)` (value→count `Map`; `bag(X) ==K bag(Y)` *is* "permutation"). Spec vocabulary, not language constructs. Routine `[simplification]` lemmas do not discharge inductive-predicate/multiset VCs: flag those obligations; never fake them as `[trusted]`.
+
+### Partial correctness and termination
+
+Circularity gives **partial correctness**: *if and when the loop terminates*, the postcondition holds. Guardedness yields coinductive soundness **without a variant** — it never asserts the loop *halts*; no decreasing measure appears in the proof, so termination is simply not established. **Total correctness** additionally requires a **decreasing measure** (a well-founded variant, e.g. `N − i`, bounded below `≥ 0` and strictly decreasing each iteration) to rule out infinite looping. The kit's default is partial correctness, with termination surfaced as a recommendation; to establish it, add the variant to the loop claim and discharge "strictly decreases, bounded below" alongside the existing VCs.
+
+Know what a finished proof gives. A hand-constructed proof is **constructed, not machine-checked** — never claim more confidence than that. Its trusted base: the adequacy of the fragment semantics as a model of the real language; the reachability proof-system metatheory; the arithmetic/`[simplification]` lemma oracle. And it covers **in-domain unit behavior only**: out-of-domain inputs, termination (unless the variant was added), performance, and integration behavior stay outside the proved contract — and out-of-domain behavior is often exactly where a bug lives.
+
+### Spec difficulty is a bug signal
+
+If a clean specification is hard or impossible to write or prove, that is itself strong evidence of a bug or a forgotten case. Writing a precise spec routinely flushes out missing preconditions, corner cases, and undefined behavior — the empty input, the zero, the negative number, the off-by-one, the overflow. If you cannot find a clean closed form, a clean precondition, or a clean side condition — or the VCs refuse to discharge — do not paper over it: that difficulty usually marks a real missing case, off-by-one, or undefined behavior, and naming it is itself a deliverable. A side condition you are *forced* to add (like `I ≤ N+1`) or a precondition you must assume (like `N ≥ 0`) is often exactly a condition the code silently assumed and never checked. Typical patterns: a sum's proof needs `N >= 0` ⇒ missing precondition/guard; a binary search's proof needs sorted, totally ordered input and proves only "some matching index" ⇒ ordering/NaN/duplicate semantics unresolved. A hard-to-write spec means either the code misses a precondition/corner case (report it — a found bug), or the case is beyond the fast path (recursive/heap data, binders/closures, concurrency, full temporal reasoning) — say so rather than invent K features to force a fit.
+
+### Limits and honest escalation
+
+The fast path — this method's sweet spot — is imperative functions with **simple counting loops and simple recursion** (one accumulator/argument, integer/map state, polynomial closed form). Escalate beyond it when code involves:
+
+- **Non-polynomial / multiplicative VCs** (e.g. factorial's `N!/(I−1)!`): needs a recursively-defined symbol plus its own `[simplification]` lemmas.
+- **Recursive/inductive data structures** (lists, trees, heaps) and relational postconditions over them (sortedness, permutation): need inductively defined predicates and multiset reasoning — often `μ`, the least fixpoint, which gives induction/recursion.
+- **Binders** (λ, quantifiers, local scoping captured semantically).
+- **Concurrency / nondeterminism**, where `[all-path]` vs `[one-path]` reachability genuinely diverge and the determinism shortcut no longer applies.
+
+Escalating is **not** giving up. The discipline: state **all** claims well-formed, define the spec-only abstractions the postcondition needs (e.g. `isSorted` as an inductive `Bool` function, `bag` as a multiset count-`Map`), discharge every VC the two-tier method *can* (in-bounds, linear), and mark the rest as explicit `[ESCALATION BOUNDARY]` obligations — **never fake them as `[trusted]`**, which manufactures unearned confidence. Open obligations are **specified**, not hidden. Distinguish **correctness gaps** from **capability gaps**: a VC requiring theory beyond linear arithmetic plus your lemmas (inductive-predicate or multiset facts — e.g. sortedness/permutation for a sort) is **not** evidence of a code bug.
+
+## Part II — Required procedure
+
+The kit's methodology loop is: generate code → `/formalize` (infer the intended contract, write K claims, collect intent/code mismatch findings) → `/verify` (construct the proof, collect proof-derived findings) → feed the evidence into the next pass. Here that loop collapses into the three steps below, with the evidence feeding your own fix. Follow this order, without exception. Write all specs **as actual K-style reachability claims** in the Part I syntax — `claim`s over symbolic variables with `requires`/`ensures` side conditions — not as loose prose.
+
+### 1. FORMALIZE (emulate `/formalize`)
+
+Before considering any code change:
+
+- **Identify the program fragment the issue implicates**: the functions, loops, and recursive structures the fix will touch. Enumerate every function and every loop in that fragment.
+- **State the intended contract, never the as-built one.** Infer intended behavior from all intent evidence — the issue text (explicitly including the behavior it demands), docstrings, names, comments, and tests — and read the code as the implementation being checked against it. Do not formalize "whatever the code happens to do" as if it were the specification; that as-built reading is at most a secondary reverse-engineering note when intent is unavailable or ambiguous. Align NL intent ↔ code ↔ formal spec: the divergence between intent and implementation *is* the bug. E.g. intent "return the sum of integers 1..n" + loop `while i <= n: s += i; i += 1` ⇒ intended domain `n >= 0`; the code's behavior on negative inputs becomes a finding (missing precondition `n >= 0`), not silently accepted as correct.
+- **Fix the mini-X semantics fragment** (mini-Python, mini-TS, …): the minimal K semantics of *just* the language fragment the code uses — a syntax module for the constructs that actually appear (and nothing else), a `configuration` of cells (e.g. `<k>`, `<store>`, `<funcs>`, `<stack>`), and one rewrite `rule` per construct. Cover only what the code touches — a summing function needs literals/names, `+`, `<=`, `=`, `+=`, `while`, `def`, `return`, and call, and no `if` if the program never uses one. Keep it small, faithful, and commented; never invent K features. In emulation you need not write out every rule: name the constructs and cells, and write out (in Part I style) only the rules whose exact behavior the proof depends on. Constructs beyond the common fragment — recursive data structures, binders/closures, concurrency, the heap, exceptions — are escalation cases (Part I), not things to improvise.
+- **Write each function's contract as a reachability claim** `φ_pre ⇒ φ_post`: the `<k>` cell defines/calls the function on symbolic arguments and rewrites to `.K`; `requires` carries the precondition; the rewritten store/result cells plus any `ensures` carry the postcondition; mark `[all-path]` (or `[one-path]` where only existence is claimed). Uppercase logical variables, lowercase program variables.
+- **Write one circularity claim per loop**, generalized over **all** moving variables (accumulator and counter symbolic — never pinned to entry values), with the loop's closed-form effect (or spec-only abstraction predicate) in the postcondition and the **soundness side condition bounding the counter** in `requires`. For each **recursive function**, write the function-contract circularity instead: generalized symbolic arguments plus the soundness precondition; the base case is the non-recursive branch. For nested loops: one claim per loop, the inner a lemma for the outer.
+- **Declare the auxiliary spec machinery** the claims will need: `[simplification]` lemmas (map extensionality, evenness/exact halving, …) and spec-only `[function]` abstractions (`isSorted`, `bag`, …) for relational postconditions.
+- **Handle input-validation guards** (`isinstance(...)`, `assert`, `if n < 0: raise ...`): on the verified domain they are no-ops (they pass and fall through). Model the reduced in-domain body — do not model `raise`/exceptions (out of fragment, an escalation case) — and record each guard as a finding, often a positive one: the guard *enforces* the precondition the spec needs (`if n < 0: raise` enforces `requires N >= 0`).
+- **Enumerate boundary conditions** — empty, zero, negative, boundary, overflow, off-by-one — plus the issue's reproduction input; confirm each is either in-domain of a claim or explicitly excluded by a `requires`.
+- **Record findings in plain language**, each as a concrete `input → observed vs expected` with a recommendation, covering at least: missing preconditions/side conditions (inputs the code silently assumes); forgotten corner cases; undefined or intent-contradicting behavior; non-universal postconditions (claimed behavior that fails for some in-domain input); dead/unreachable code. Shape, instantiated: missing precondition `n >= 0` — input `n = -3` → observed: returns `0` (the loop never runs); expected per the closed form `n*(n+1)/2`: `3`; recommendation: enforce/document `n >= 0` and state the contract with `requires N >=Int 0` (the related loop soundness obligation `i <= n + 1` then holds on every reachable iteration). These findings are your diagnosis; in this task they drive the fix.
+- If a clean spec is hard to write, that difficulty is itself a bug signal — it usually marks the exact missing case (Part I). Say so explicitly and let it point you at the defect.
+
+### 2. VERIFY (emulate `/verify`)
+
+Draft a candidate fix, then systematically prove the FORMALIZE claims hold of the patched code — by hand-executed symbolic execution against the fragment semantics, never by trusting the fix:
+
+- **Prove the stated contract; never invent or weaken specs mid-proof.** Verification proves what FORMALIZE wrote — the job is to prove a stated contract, not to choose it. If a spec proves wrong or missing, return to step 1, revise it deliberately, then restart verification.
+- **Symbolically execute** the `<k>` cell with the fragment's rules, faithful to its actual rewrite rules: heating/cooling evaluates sub-expressions left-to-right — these micro-steps are the manual `(lookup)`/`(add)`/`(leq)` steps of a paper proof — then the matching rule fires. Chain successive steps by **Transitivity**; carry untouched cells, bindings, and the path's side constraint unchanged by **framing** (the `...` cell-completion).
+- **Case-split every guard** (Case Analysis on the `#Or`): loop guard true vs. false, base vs. recursive branch, every `if`, every early return and error path. Each branch's assumption joins the path condition; **every branch must land on the claimed post-state**.
+- **Discharge every circularity by guarded coinduction.** Take the genuine `=>⁺` step first — guard evaluation for a loop, the `call` step for recursion; never let a claim close a goal via Reflexivity alone (zero progress). In the body-taken branch, execute the body and invoke the claim on the shifted state (e.g. `{S := S+I, I := I+1}`), **re-checking its `requires` side condition at that shifted state**. In the exit branch, substitute the negated guard (it pins the counter) and collapse the closed form.
+- **Discharge every verification condition** explicitly, by the Part I tiers: linear facts by explicit algebra; nonlinear/division facts by naming the `[simplification]` lemma used (e.g. VC-EXACT) and why it is sound; cell equalities via map extensionality. Never wave an obligation through as trusted; an undischarged obligation means verification is incomplete. The only admissible open obligations are explicitly marked `[ESCALATION BOUNDARY]` capability gaps — never silent ones.
+- **Compose the function-level proof by Transitivity**: definition → call/parameter binding → initialization → each loop via its circularity instantiated at the loop-entry state (precondition discharged there) → return delivering the result: `A ⊢ φ_pre ⇒ φ_post`.
+- **Check a termination measure** for every loop and recursion the patch touches: exhibit a decreasing, bounded-below variant (e.g. `N − i`) and check it strictly decreases each iteration. The kit's partial-correctness default would let a diverging fix slip through verification; here the check is mandatory.
+- **Confirm the issue's reproduction case** now satisfies the postcondition, and that previously correct in-domain behavior still does (no regression).
+- **Treat every proof obstacle as a finding, not a dead end.** For each failed or stuck obligation record: the **evidence** (the exact claim, branch, VC, circularity side condition, or proof step where it appeared); a **classification** (code bug | missing precondition | underspecified intent | needed code guard | termination/performance gap | test gap | proof capability gap); the **intent question** it raises (e.g. "Should negative `n` raise, return `0`, or be out of domain?"; "For duplicates: any match or the leftmost?") — in this one-shot setting, answer it from the issue's intent evidence and record the decision; the **recommended next change**; and a concrete counterexample (`input → observed vs expected`) where applicable. Distinguish correctness gaps (fix the code) from capability gaps (mark the boundary; not a code bug).
+- **Conclude honestly**: state what is proved (e.g. "for every `n ≥ 0`, `sum_to_n(n) = n*(n+1)/2`, if and when it terminates") and the residual risk per Part I — constructed, not machine-checked; the trusted base; in-domain unit behavior only.
+
+**If verification fails on any path or obligation, treat the failure as a finding: diagnose it, revise the fix, and re-verify — every revision of the fix restarts step 2 in full. Repeat until every obligation is discharged (or explicitly boundary-marked as a capability gap, never silently dropped).**
+
+### 3. PATCH — only after verification succeeds
+
+Emit the final unified-diff patch. It must implement exactly the fix you verified — nothing more.
+
+## Discipline
+
+- Keep the formalization **proportionate**: specify the code touched by the issue and its immediate dependencies, not the whole codebase; match the depth of rigor to the subtlety of the bug.
+- Present the FORMALIZE and VERIFY work visibly in your answer before the patch so the reasoning is auditable — unless the task instructions require patch-only output.
+- **Output format:** this directive governs methodology only. For the final answer's formatting — the patch format, any wrappers, and all output constraints — follow the task instructions in the user message exactly; they take precedence over anything here.
