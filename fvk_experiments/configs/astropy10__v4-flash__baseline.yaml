@@ -1,11 +1,8 @@
-# Arm B' — FVK v2: identical to baseline, plus the COMPREHENSIVE (~10k-token) FVK
-# prompt (prompts/fvk/v2.md: full kit knowledge — K, spec syntax, invariants,
-# circularity rules — excluding report machinery and worked examples) injected as a
-# system message. Compare against the same baseline run as fvk-v1.
+# Arm A — BASELINE: DeepSeek V4 (thinking) on the oracle prompt, no special prompts.
 # Rerun:
-#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10_fvk_v2.yaml
-run_name: astropy10__ds-v4-flash-think__fvk-v2
-variant: fvk
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-flash__baseline.yaml
+run_name: astropy10__ds-v4-flash-think__baseline
+variant: baseline
 
 dataset:
   name: princeton-nlp/SWE-bench_Verified
@@ -26,20 +23,19 @@ dataset:
     - astropy__astropy-14309
 
 model:
-  name: deepseek-v4-flash   # must match the baseline arm for a valid pair
-  thinking: true
+  name: deepseek-v4-flash   # most recent DeepSeek generation; deepseek-v4-pro is the 3x-cost flagship
+  thinking: true            # sent as request param {"thinking": {"type": "enabled"}}
   max_tokens: 65536
 
 inference:
   max_workers: 4
   request_timeout_s: 2400
   api_retries: 3
-  retry_on_empty_patch: 1
+  retry_on_empty_patch: 1   # one re-sample if no parsable diff (same policy both arms)
 
 eval:
   max_workers: 4
   timeout_s: 1800
 
 prompt:
-  style: oracle
-  fvk_prompt: prompts/fvk/v2.md   # comprehensive ~10k-token distillation (sha256 recorded per run)
+  style: oracle             # user message = `text` column of SWE-bench_oracle

@@ -2,7 +2,7 @@
 # (prompts/fvk/v1.md) injected as a system message. To test a newer prompt, copy
 # this file, point prompt.fvk_prompt at vN.md, and update run_name to match.
 # Rerun:
-#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10_fvk_v1.yaml
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-flash__fvk-v1.yaml
 run_name: astropy10__ds-v4-flash-think__fvk-v1
 variant: fvk
 

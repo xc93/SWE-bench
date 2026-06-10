@@ -9,7 +9,7 @@ official SWE-bench docker harness; **solved** = all FAIL_TO_PASS + PASS_TO_PASS 
 Both arms always share model, instances, and sampling config — the only difference is the
 FVK system prompt. Methodology details and caveats: [DESIGN.md](DESIGN.md).
 
-_Last regenerated: 2026-06-10 11:46 UTC (auto-generated — `run.py results` to refresh)._
+_Last regenerated: 2026-06-10 11:55 UTC (auto-generated — `run.py results` to refresh)._
 
 ## Pair comparisons
 

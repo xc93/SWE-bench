@@ -123,6 +123,13 @@ def write_pair_report(baseline_dir: Path, treatment_dir: Path, out_path: Path) -
     if b_ids != t_ids:
         raise ValueError("Runs cover different instance sets — not a valid pair")
 
+    b_model = b["model_label"].split("__")[0]
+    t_model = t["model_label"].split("__")[0]
+    cross_model_banner = "" if b_model == t_model else (
+        f"\n> ⚠️ **Cross-model comparison** (`{b_model}` vs `{t_model}`): this measures the\n"
+        f"> model difference, NOT the prompt effect. For a prompt A/B, compare arms that\n"
+        f"> share a model.\n")
+
     bi = {i["instance_id"]: i for i in b["instances"]}
     ti = {i["instance_id"]: i for i in t["instances"]}
     rows, flips = [], {"both": [], "neither": [], "fvk_only": [], "baseline_only": []}
@@ -143,7 +150,7 @@ def write_pair_report(baseline_dir: Path, treatment_dir: Path, out_path: Path) -
     md = f"""# Pair comparison — baseline vs {t['variant_tag']}
 
 Generated: {_today()}
-
+{cross_model_banner}
 | | baseline | {t['variant_tag']} |
 |---|---|---|
 | **solved_count** | **{b['solved_count']} / {b['n_instances']}** | **{t['solved_count']} / {t['n_instances']}** |
@@ -204,7 +211,9 @@ def write_results_index(exp_root: Path = EXP_ROOT) -> Path:
             f"— `{a['model']}`, {subject} — [per-instance comparison](reports/{pp.name})")
 
     run_rows = []
-    for s in sorted(summaries.values(), key=lambda x: (x.get("meta") or {}).get("started_at", "")):
+    for s in sorted(summaries.values(),
+                    key=lambda x: (x.get("model", ""),
+                                   (x.get("meta") or {}).get("started_at", ""))):
         started = ((s.get("meta") or {}).get("started_at") or "")[:16].replace("T", " ")
         prompt = (f"`{s.get('fvk_prompt_version')}` (sha `{(s.get('fvk_prompt_sha256') or '')[:12]}`)"
                   if s.get("fvk_prompt_sha256") else "—")

@@ -1,8 +1,10 @@
-# Arm A — BASELINE: DeepSeek V4 (thinking) on the oracle prompt, no special prompts.
+# Arm B @ v4-pro — FVK v1: DeepSeek V4 Pro (thinking) with the distilled FVK v1
+# prompt as system message. Pair against astropy10__v4-pro__baseline runs only
+# (same model).
 # Rerun:
-#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10_baseline.yaml
-run_name: astropy10__ds-v4-flash-think__baseline
-variant: baseline
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-pro__fvk-v1.yaml
+run_name: astropy10__ds-v4-pro-think__fvk-v1
+variant: fvk
 
 dataset:
   name: princeton-nlp/SWE-bench_Verified
@@ -23,19 +25,20 @@ dataset:
     - astropy__astropy-14309
 
 model:
-  name: deepseek-v4-flash   # most recent DeepSeek generation; deepseek-v4-pro is the 3x-cost flagship
-  thinking: true            # sent as request param {"thinking": {"type": "enabled"}}
+  name: deepseek-v4-pro    # must match the pro baseline arm for a valid pair
+  thinking: true
   max_tokens: 65536
 
 inference:
   max_workers: 4
   request_timeout_s: 2400
   api_retries: 3
-  retry_on_empty_patch: 1   # one re-sample if no parsable diff (same policy both arms)
+  retry_on_empty_patch: 1
 
 eval:
   max_workers: 4
   timeout_s: 1800
 
 prompt:
-  style: oracle             # user message = `text` column of SWE-bench_oracle
+  style: oracle
+  fvk_prompt: prompts/fvk/v1.md   # same frozen v1 prompt (sha256 recorded per run)

@@ -37,8 +37,8 @@ you'd like changed and rerun is one command.
 fvk_experiments/
 ├── DESIGN.md / README.md
 ├── configs/                  # one YAML per (subject-set × arm) — the rerun knobs
-│   ├── astropy10_baseline.yaml
-│   └── astropy10_fvk_v1.yaml
+│   ├── astropy10__v4-flash__baseline.yaml
+│   └── astropy10__v4-flash__fvk-v1.yaml
 ├── prompts/fvk/              # versioned distilled FVK prompts
 │   ├── v1.md                 # YAML frontmatter: version, date, source repo+commit
 │   └── CHANGELOG.md

@@ -3,7 +3,7 @@
 # scripts/build_v3_verbatim.py from the pinned submodule commit — no distillation)
 # behind a thin one-shot adaptation wrapper. Compare against the same baseline run.
 # Rerun:
-#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10_fvk_v3.yaml
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__v4-flash__fvk-v3.yaml
 run_name: astropy10__ds-v4-flash-think__fvk-v3
 variant: fvk
 

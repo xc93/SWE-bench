@@ -17,6 +17,7 @@ rate. Keep upstream `swebench/` unmodified — all experiment code lives in `fvk
 
 - `.venv/` is uv-managed (no pip binary): use `.venv/bin/python`; install via `uv pip install --python .venv/bin/python <pkg>`
 - Inference needs `DEEPSEEK_API_KEY` env var; evaluation needs a running docker daemon
+- Configs are one per (subject × model × arm): `configs/<subject>__<model-short>__<arm>.yaml` (e.g. `astropy10__v4-pro__fvk-v1.yaml`). New model ⇒ copy a config, change `model.name` + `run_name` only. Pair-compare arms within the same model.
 - DeepSeek V4 API: models `deepseek-v4-flash` / `deepseek-v4-pro`; thinking mode is a request param `{"thinking": {"type": "enabled"}}` (no more `deepseek-reasoner` alias)
 
 ## Commands

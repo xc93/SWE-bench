@@ -21,13 +21,13 @@ PY=.venv/bin/python
 RUN="$PY fvk_experiments/run.py"
 
 # 0. one-time environment sanity: do the gold patches still pass? (also pre-pulls images)
-$RUN gold-sanity --config fvk_experiments/configs/astropy10_baseline.yaml
+$RUN gold-sanity --config fvk_experiments/configs/astropy10__v4-flash__baseline.yaml
 
 # 1. baseline arm  →  prints "solved X/10", writes runs/<run_id>/report.md
-$RUN run --config fvk_experiments/configs/astropy10_baseline.yaml
+$RUN run --config fvk_experiments/configs/astropy10__v4-flash__baseline.yaml
 
 # 2. fvk arm
-$RUN run --config fvk_experiments/configs/astropy10_fvk_v1.yaml
+$RUN run --config fvk_experiments/configs/astropy10__v4-flash__fvk-v1.yaml
 
 # 3. pair report → solved_count_baseline vs solved_count_fvk
 $RUN compare --baseline fvk_experiments/runs/<baseline_run_id> \
@@ -48,7 +48,13 @@ Everything is config-driven ([configs/](configs/)):
   run label and the file's sha256 is recorded in `meta.json`/reports, so every report is
   traceable to an exact prompt.
 - **Which model**: `model.name` (`deepseek-v4-flash` ⇄ `deepseek-v4-pro`),
-  `model.thinking` (true/false).
+  `model.thinking` (true/false). One config per **(subject × model × arm)**, named
+  `<subject>__<model-short>__<arm>.yaml` with
+  `run_name: <subject>__ds-<model-short>-think__<arm>` — to add a model, copy an
+  existing config and change only `model.name` and `run_name`. The model is carried
+  through run ids, prediction labels, reports, and RESULTS.md automatically. Compare
+  arms **within** one model; cross-model pair reports get a loud warning banner since
+  they measure the model, not the prompt.
 
 ## Where results land
 
