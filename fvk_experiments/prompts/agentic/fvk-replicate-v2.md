@@ -20,10 +20,19 @@ deviations:
     but NO .venv; the agent creates its own .venv and installs the repo editable
     plus pytest. For the 6 hard compiled-dependency instances (3 astropy + 2 xarray
     + 1 scikit-learn) a .venv IS pre-staged by our builder, and the agent verifies
-    it. The Phase 0 wording covers both: "a .venv may already be staged — verify it;
-    if not, create one and install the repo editable, plus pytest." The original
-    Phase-0 intent (sanity-check imports + tests before Phase 1) is kept, and ad-hoc
-    local test running is explicitly encouraged throughout. This supersedes v1's
+    it. The Phase 0 wording covers both: "if .venv/ is already staged, verify it
+    and use it; otherwise create one and install the repo + test deps yourself."
+    The install recipe is Grigore's verbatim Phase-0 fallback from the sympy
+    sample (source/sympy__sympy-17630_fvk_prompt.md: uv venv 3.9 || 3.11 ||
+    python3 -m venv, pip install -U pip setuptools wheel, pip install -e ., pip
+    install pytest, "Install enough public test dependencies to run relevant
+    tests."), with two adaptations: the editable install targets the STAGED
+    repo/ (his cloned into repo/ himself), and an exported
+    SETUPTOOLS_SCM_PRETEND_VERSION={version} compensates for OUR truncated-history
+    staging, which otherwise breaks setuptools-scm version detection during the
+    install (version is a public dataset field). The original Phase-0 intent
+    (sanity-check imports + tests before Phase 1) is kept, and ad-hoc local
+    test running is explicitly encouraged throughout. This supersedes v1's
     deviation (b) ("pre-built workspace verified in Phase 0"). The repo is still
     staged with truncated history and no origin (no clone, no remote) so the
     leak-safety of v1 is preserved. Occurrences marked "DEVIATION (b-v2)".
@@ -120,7 +129,7 @@ Use or create: `patches/`, `reports/`, `fvk/`.
 
 <!-- DEVIATION (c): the answer key (reference solution + hidden tests) is relocated out of
 this workspace for measurement integrity; the line below states how grading works. -->
-Grading is performed by `scripts/private_eval.py`, which reports only aggregate pass/fail counts; the reference solution and hidden tests are not available in this workspace.
+Grading is performed by `scripts/private_eval.py`, which reports only aggregate pass/fail counts; the reference solution and hidden tests are not available in this workspace. Its scores are computed inside the instance's official SWE-bench evaluation environment, so they match the official grader.
 
 ## Phase 0: Set Up and Verify Your Working Environment
 
@@ -137,16 +146,16 @@ A `.venv/` may already be staged for this instance. First check whether it works
     cd ..
     .venv/bin/python -c "import {module_name}; print({module_name}.__version__)" 2>/dev/null && echo "venv OK" || echo "need to build venv"
 
-If `.venv/` is missing or does not import `{module_name}`, create one and install the staged repo editable, plus pytest:
+If `.venv/` is already staged and works, verify it and use it. Otherwise create one and install the repo and its test dependencies yourself. Prefer repo instructions; practical fallback:
 
-    python3 -m venv .venv
-    .venv/bin/python -m pip install --upgrade pip
-    cd repo
-    ../.venv/bin/python -m pip install -e .
-    ../.venv/bin/python -m pip install pytest
-    cd ..
+    export SETUPTOOLS_SCM_PRETEND_VERSION={version}  # the staged checkout has truncated history (no tags), which otherwise breaks setuptools-scm version detection
+    uv venv --python 3.9 .venv || uv venv --python 3.11 .venv || python3 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install -U pip setuptools wheel
+    (cd repo && python -m pip install -e .) || true
+    python -m pip install pytest || true
 
-(If the editable install needs extras or build/test dependencies for {repo_title}, install them too; the goal is an environment where you can import `{module_name}` and run the repo's own tests.)
+Install enough public test dependencies to run relevant tests.
 
 Then confirm:
 

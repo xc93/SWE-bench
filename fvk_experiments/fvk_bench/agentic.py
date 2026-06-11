@@ -319,6 +319,25 @@ def _uv() -> str:
     return uv
 
 
+def _needs_legacy_pip(spec: dict) -> bool:
+    """True when the image spec's install steps use pip options modern pip
+    dropped (`--no-use-pep517`, removed in pip 25 — the scikit-learn specs need
+    it for their legacy cython in-place builds). The official env images carry
+    an era-appropriate pip; our uv-seeded venv gets the latest, so we downgrade
+    pip first for exactly these specs (validated on scikit-learn-25102)."""
+    lines = [spec.get("install") or ""] + list(spec.get("pre_install") or [])
+    return any("--no-use-pep517" in line for line in lines)
+
+
+def _pipify_conda_pin(token: str) -> str:
+    """Translate one conda-style `name==x.y.z` pin to pip `name~=x.y.z` (same
+    minor series, wheels permitting); anything else passes through verbatim."""
+    name, sep, ver = token.partition("==")
+    if sep and re.fullmatch(r"[0-9][0-9.]*", ver):
+        return f"{name}~={ver}"
+    return token
+
+
 def build_repo_venv(ws: Path, repo_dir: Path, row: dict, log: Path) -> dict:
     """Create <ws>/.venv mirroring what the swebench image installs for this row,
     plus a repo/.venv symlink to it (the session templates use `.venv/bin/python`
@@ -347,11 +366,44 @@ def build_repo_venv(ws: Path, repo_dir: Path, row: dict, log: Path) -> dict:
     if row.get("version"):
         env["SETUPTOOLS_SCM_PRETEND_VERSION"] = str(row["version"])
 
+    if _needs_legacy_pip(spec):
+        # The spec's install uses --no-use-pep517 (dropped in pip 25); match the
+        # era-appropriate pip the official env images carry.
+        _run([py, "-m", "pip", "install", "pip<25"], cwd=repo_dir, env=env, log=log)
+
     for cmd in spec.get("pre_install", []) or []:
         if "apt-get" in cmd:  # host build: no root/apt — images need it for graphviz etc.
             print(f"    [venv] skipping apt-get pre_install step: {cmd!r}", flush=True)
             continue
         _run(["bash", "-c", cmd], cwd=repo_dir, env=env, log=log)
+
+    # spec["packages"]: the env image's conda install line. Three shapes:
+    #   - a conda-style package list (often PINNED — scikit-learn pins
+    #     cython==3.0.10 etc. here, NOT in pip_packages): pip-install it,
+    #     BEFORE pip_packages (whose unpinned names then no-op via pip's
+    #     already-satisfied rule, exactly like the image's conda->pip
+    #     ordering). Conda `==` pins are relaxed to pip `~=` (same minor
+    #     series) with --prefer-binary: conda ships binaries where PyPI has no
+    #     wheel for that exact micro (numpy==1.19.2 has no cp39 wheel; ~=
+    #     resolves 1.19.5) — the venv is the agent's SCRATCHPAD, grading is in
+    #     docker, so era-faithful beats unbuildable. Validated on
+    #     scikit-learn-25102.
+    #   - "requirements.txt": install the repo's own requirements file.
+    #   - "environment.yml": conda-only env file — SKIPPED like the apt-get
+    #     steps; for these repos the spec's pip_packages carry the pinned
+    #     testing deps (validated on the xarray hard instances).
+    packages = (spec.get("packages") or "").strip()
+    if packages == "requirements.txt":
+        _run([py, "-m", "pip", "install", "-r", "requirements.txt"],
+             cwd=repo_dir, env=env, log=log)
+    elif packages == "environment.yml":
+        print("    [venv] skipping conda environment.yml (pip_packages cover "
+              "the testing deps)", flush=True)
+    elif packages:
+        import shlex
+        _run([py, "-m", "pip", "install", "--prefer-binary",
+              *(_pipify_conda_pin(tok) for tok in shlex.split(packages))],
+             cwd=repo_dir, env=env, log=log)
 
     pips = spec.get("pip_packages", []) or []
     if pips:
@@ -434,6 +486,39 @@ def instance_image_candidates(row: dict, arch: str | None = None) -> list[str]:
     return [f"swebench/{base}".replace("__", "_1776_"), base]
 
 
+def supported_eval_parser(repo: str) -> str:
+    """The private evaluator's parser id for `repo`, or raise if unsupported.
+
+    The in-workspace evaluator is stdlib-only, so it carries FAITHFUL PORTS of
+    the official log parsers (tests/test_agentic_infra.py proves port==official
+    on shared samples). The five ports cover all 8 repos of the 45-instance
+    Grigore-set: pytest_v2 (astropy, scikit-learn, sphinx), pytest (xarray,
+    pytest-dev), pytest_options (pylint), django, sympy.
+    """
+    from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
+    from swebench.harness.log_parsers.python import (parse_log_django,
+                                                     parse_log_pytest,
+                                                     parse_log_pytest_options,
+                                                     parse_log_pytest_v2,
+                                                     parse_log_sympy)
+
+    parser_fn = MAP_REPO_TO_PARSER.get(repo)
+    by_fn = {
+        parse_log_pytest_v2: "pytest_v2",
+        parse_log_pytest: "pytest",
+        parse_log_pytest_options: "pytest_options",
+        parse_log_django: "django",
+        parse_log_sympy: "sympy",
+    }
+    parser = by_fn.get(parser_fn)
+    if parser is None:
+        raise ValueError(
+            f"docker grading unsupported for repo {repo!r}: official parser is "
+            f"{getattr(parser_fn, '__name__', None)!r}, which has no port in "
+            "the private evaluator")
+    return parser
+
+
 def docker_eval_staging(row: dict, timeout_s: int = 1800) -> dict:
     """The _staging.eval payload for the v2 docker evaluator.
 
@@ -441,27 +526,13 @@ def docker_eval_staging(row: dict, timeout_s: int = 1800) -> dict:
     (swebench make_test_spec: conda activate, reset test files to base, apply
     test_patch, run test_cmd + directives between the official output markers,
     reset again) — so in-session aggregates and the final harness eval are the
-    same mechanism. parser names the official log parser for this repo; only
-    the two pytest variants are supported (covers astropy/xarray/sklearn).
-    Raises for repos the official spec map does not know — such an instance
-    could not be graded by the final harness either.
+    same mechanism. parser names the official log parser for this repo (see
+    supported_eval_parser). Raises for repos the official spec map does not
+    know — such an instance could not be graded by the final harness either.
     """
-    from swebench.harness.log_parsers import MAP_REPO_TO_PARSER
-    from swebench.harness.log_parsers.python import (parse_log_pytest,
-                                                     parse_log_pytest_v2)
     from swebench.harness.test_spec.test_spec import make_test_spec
 
-    repo = row["repo"]
-    parser_fn = MAP_REPO_TO_PARSER.get(repo)
-    if parser_fn is parse_log_pytest_v2:
-        parser = "pytest_v2"
-    elif parser_fn is parse_log_pytest:
-        parser = "pytest"
-    else:
-        raise ValueError(
-            f"docker grading unsupported for repo {repo!r}: official parser is "
-            f"{getattr(parser_fn, '__name__', None)!r}, only the pytest parsers "
-            "are ported into the private evaluator")
+    parser = supported_eval_parser(row["repo"])
     spec = make_test_spec(row, namespace=None, arch=_arch())
     return {
         "mode": "docker-image",
@@ -820,37 +891,132 @@ def docker(args, timeout=120, quiet=False):
     return p.returncode, ("" if quiet else (p.stdout or ""))
 
 
-def parse_statuses(log, kind):
-    """Faithful port of the official log parsers this evaluator supports:
-    parse_log_pytest_v2 (astropy, scikit-learn) and parse_log_pytest (xarray).
-    Keys are whitespace-split exactly like the official parser, so membership
-    against the dataset's (whitespace-truncated) test ids matches the harness.
-    """
+# --- log parsers: FAITHFUL PORTS of swebench.harness.log_parsers.python ----
+# (tests/test_agentic_infra.py proves port == official function on shared
+# samples). Keys come out exactly like the official parser's, so membership
+# against the dataset's test ids matches the harness. Five ports cover the
+# 45-instance Grigore-set: pytest_v2 (astropy, scikit-learn, sphinx), pytest
+# (xarray, pytest-dev), pytest_options (pylint), django, sympy.
+
+def _parse_pytest(log):
     statuses = {}
-    if kind == "pytest_v2":
-        escapes = "".join(chr(c) for c in range(1, 32))
-        table = str.maketrans("", "", escapes)
-        for line in log.split("\n"):
-            line = re.sub(r"\[(\d+)m", "", line).translate(table)
-            if any(line.startswith(s) for s in STATUSES):
-                if line.startswith("FAILED"):
-                    line = line.replace(" - ", " ")
-                toks = line.split()
-                if len(toks) >= 2:
-                    statuses[toks[1]] = toks[0]
-            elif any(line.endswith(s) for s in STATUSES):
-                toks = line.split()
-                if len(toks) >= 2:
-                    statuses[toks[0]] = toks[1]
-    else:  # "pytest"
-        for line in log.split("\n"):
-            if any(line.startswith(s) for s in STATUSES):
-                if line.startswith("FAILED"):
-                    line = line.replace(" - ", " ")
-                toks = line.split()
-                if len(toks) >= 2:
-                    statuses[toks[1]] = toks[0]
+    for line in log.split("\n"):
+        if any(line.startswith(s) for s in STATUSES):
+            if line.startswith("FAILED"):
+                line = line.replace(" - ", " ")
+            toks = line.split()
+            if len(toks) <= 1:
+                continue
+            statuses[toks[1]] = toks[0]
     return statuses
+
+
+def _parse_pytest_v2(log):
+    statuses = {}
+    escapes = "".join(chr(c) for c in range(1, 32))
+    table = str.maketrans("", "", escapes)
+    for line in log.split("\n"):
+        line = re.sub(r"\[(\d+)m", "", line).translate(table)
+        if any(line.startswith(s) for s in STATUSES):
+            if line.startswith("FAILED"):
+                line = line.replace(" - ", " ")
+            toks = line.split()
+            if len(toks) >= 2:
+                statuses[toks[1]] = toks[0]
+        elif any(line.endswith(s) for s in STATUSES):
+            toks = line.split()
+            if len(toks) >= 2:
+                statuses[toks[0]] = toks[1]
+    return statuses
+
+
+def _parse_pytest_options(log):
+    option_pattern = re.compile(r"(.*?)\[(.*)\]")
+    statuses = {}
+    for line in log.split("\n"):
+        if any(line.startswith(s) for s in STATUSES):
+            if line.startswith("FAILED"):
+                line = line.replace(" - ", " ")
+            toks = line.split()
+            if len(toks) <= 1:
+                continue
+            has_option = option_pattern.search(toks[1])
+            if has_option:
+                main, option = has_option.groups()
+                if option.startswith("/") and not option.startswith("//") \
+                        and "*" not in option:
+                    option = "/" + option.split("/")[-1]
+                name = "{}[{}]".format(main, option)
+            else:
+                name = toks[1]
+            statuses[name] = toks[0]
+    return statuses
+
+
+def _parse_django(log):
+    statuses = {}
+    prev_test = None
+    for line in log.split("\n"):
+        line = line.strip()
+        if "--version is equivalent to version" in line:
+            statuses["--version is equivalent to version"] = "PASSED"
+        if " ... " in line:
+            prev_test = line.split(" ... ")[0]
+        for suffix in (" ... ok", " ... OK", " ...  OK"):
+            if line.endswith(suffix):
+                if line.strip().startswith(
+                        "Applying sites.0002_alter_domain_unique...test_no_migrations"):
+                    line = line.split("...", 1)[-1].strip()
+                statuses[line.rsplit(suffix, 1)[0]] = "PASSED"
+                break
+        if " ... skipped" in line:
+            statuses[line.split(" ... skipped")[0]] = "SKIPPED"
+        if line.endswith(" ... FAIL"):
+            statuses[line.split(" ... FAIL")[0]] = "FAILED"
+        if line.startswith("FAIL:"):
+            statuses[line.split()[1].strip()] = "FAILED"
+        if line.endswith(" ... ERROR"):
+            statuses[line.split(" ... ERROR")[0]] = "ERROR"
+        if line.startswith("ERROR:"):
+            statuses[line.split()[1].strip()] = "ERROR"
+        if line.lstrip().startswith("ok") and prev_test is not None:
+            statuses[prev_test] = "PASSED"
+    for pattern in (
+        r"^(.*?)\s\.\.\.\sTesting\ against\ Django\ installed\ in\ ((?s:.*?))\ silenced\)\.\nok$",
+        r"^(.*?)\s\.\.\.\sInternal\ Server\ Error:\ \/(.*)\/\nok$",
+        r"^(.*?)\s\.\.\.\sSystem check identified no issues \(0 silenced\)\nok$",
+    ):
+        for match in re.finditer(pattern, log, re.MULTILINE):
+            statuses[match.group(1)] = "PASSED"
+    return statuses
+
+
+def _parse_sympy(log):
+    statuses = {}
+    for match in re.findall(r"(_*) (.*)\.py:(.*) (_*)", log):
+        statuses["{}.py:{}".format(match[1], match[2])] = "FAILED"
+    for line in log.split("\n"):
+        line = line.strip()
+        if line.startswith("test_"):
+            if line.endswith(" E"):
+                statuses[line.split()[0]] = "ERROR"
+            if line.endswith(" F"):
+                statuses[line.split()[0]] = "FAILED"
+            if line.endswith(" ok"):
+                statuses[line.split()[0]] = "PASSED"
+    return statuses
+
+
+PARSERS = {"pytest": _parse_pytest, "pytest_v2": _parse_pytest_v2,
+           "pytest_options": _parse_pytest_options, "django": _parse_django,
+           "sympy": _parse_sympy}
+
+
+def parse_statuses(log, kind):
+    parse = PARSERS.get(kind)
+    if parse is None:
+        infra_fail()
+    return parse(log)
 
 
 def test_section(output):
@@ -1049,15 +1215,18 @@ def _prompt_md(row: dict, f2p_n: int, p2p_n: int) -> str:
             f"Evaluator shape: FAIL_TO_PASS {f2p_n}, PASS_TO_PASS {p2p_n}\n")
 
 
-def _staging_extras(row: dict, grading_backend: str = GRADING_LOCAL) -> dict:
+def _staging_extras(row: dict, grading_backend: str = GRADING_LOCAL,
+                    eval_timeout_s: int = 1800) -> dict:
     """Derived keys staged alongside the OUT-OF-WORKSPACE row for the evaluator
     (underscored to distinguish them from real dataset fields).
 
     `test_cmd` (the spec's pytest command) feeds the LOCAL evaluator. For the
     DOCKER backend we additionally stage `eval`: the docker_eval_staging payload
     (official image candidates + the official eval_script that embeds the hidden
-    test_patch + the parser name). That hidden-bearing payload lives ONLY here,
-    next to the row outside the workspace — never in the staged workspace.
+    test_patch + the parser name + the eval timeout, mirroring cfg.eval.timeout_s
+    so in-session grading gets the same budget as the final harness eval). That
+    hidden-bearing payload lives ONLY here, next to the row outside the
+    workspace — never in the staged workspace.
     """
     test_cmd = None
     try:
@@ -1070,8 +1239,8 @@ def _staging_extras(row: dict, grading_backend: str = GRADING_LOCAL) -> dict:
     extras = {"test_cmd": test_cmd, "staged_at": _now()}
     if grading_backend == GRADING_DOCKER:
         # Hidden test_patch is embedded in eval_script here (outside the
-        # workspace). TODO(validate): exercise the docker path end-to-end.
-        extras["eval"] = docker_eval_staging(row)
+        # workspace).
+        extras["eval"] = docker_eval_staging(row, timeout_s=eval_timeout_s)
     return extras
 
 
@@ -1103,12 +1272,14 @@ def build_workspace(cfg: Config, run_dir: Path, instance_row: dict, arm_kind: st
                     *, repo_src: str | None = None, kit_src: Path | None = None,
                     build_venv: bool = True,
                     prebuild_env: bool | None = None,
-                    grading_backend: str = GRADING_LOCAL,
+                    grading_backend: str | None = None,
+                    ensure_image: bool | None = None,
                     workspaces_dir: Path | None = None) -> Path:
     """Build (or rebuild from scratch) the workspace for one instance.
 
     Keyword knobs exist for hermetic tests only: `repo_src` (local fixture repo
     instead of GitHub), `kit_src`, `build_venv=False` (skip the env build),
+    `ensure_image=False` (skip the docker image inspect/pull),
     `workspaces_dir` (tmp dir instead of fvk_experiments/workspaces/).
 
     `prebuild_env` (45-instance multi-repo run; see PREP_NOTES.md): per-instance
@@ -1120,19 +1291,31 @@ def build_workspace(cfg: Config, run_dir: Path, instance_row: dict, arm_kind: st
     regardless (hermetic tests) — it ANDs with the above.
 
     `grading_backend` selects scripts/private_eval.py's grading path: "local"
-    (v1 default — grade on a local temp copy; fully tested) or "docker" (v2 —
-    grade inside the instance's official prebuilt image; UNVALIDATED, see
-    PRIVATE_EVAL_SCRIPT_DOCKER + docker_eval_staging).
+    (v1 — grade on a local temp copy; fully tested) or "docker" (v2 — grade
+    inside the instance's official prebuilt image). When None (default) it
+    follows the PROTOCOL: docker for phased arms under a v2+ template, local
+    otherwise — so run_instance needs no extra wiring and v1 configs are
+    byte-for-byte unchanged.
+
+    `ensure_image`: pre-pull/verify the official eval image at build time
+    (default: exactly when the docker backend is in play), so the session never
+    needs registry access mid-protocol.
     """
     if arm_kind not in ALL_KINDS:
         raise ValueError(f"unknown arm_kind {arm_kind!r} (expected one of {ALL_KINDS})")
+    row = instance_row
+    iid = row["instance_id"]
+    phased = arm_kind in PHASED_KINDS
+    if grading_backend is None:
+        grading_backend = (GRADING_DOCKER if phased and protocol_version(cfg) >= 2
+                           else GRADING_LOCAL)
     if grading_backend not in (GRADING_LOCAL, GRADING_DOCKER):
         raise ValueError(
             f"unknown grading_backend {grading_backend!r} "
             f"(expected {GRADING_LOCAL!r} or {GRADING_DOCKER!r})")
-    row = instance_row
-    iid = row["instance_id"]
-    phased = arm_kind in PHASED_KINDS
+    docker_grading = phased and grading_backend == GRADING_DOCKER
+    if ensure_image is None:
+        ensure_image = docker_grading
     f2p = listify(row.get("FAIL_TO_PASS"))
     p2p = listify(row.get("PASS_TO_PASS"))
     # Effective venv decision: hermetic build_venv=False always wins (skip), else
@@ -1170,7 +1353,8 @@ def build_workspace(cfg: Config, run_dir: Path, instance_row: dict, arm_kind: st
         priv_out.mkdir(parents=True, exist_ok=True)
         full = {**row,
                 "FAIL_TO_PASS": f2p, "PASS_TO_PASS": p2p,
-                "_staging": _staging_extras(row, grading_backend)}
+                "_staging": _staging_extras(row, grading_backend,
+                                            eval_timeout_s=cfg.eval.timeout_s)}
         row_path = (priv_out / "row.json").resolve()
         row_path.write_text(json.dumps(full, indent=2) + "\n")
         # private_eval/ in the workspace now holds ONLY the local eval log the
@@ -1186,6 +1370,14 @@ def build_workspace(cfg: Config, run_dir: Path, instance_row: dict, arm_kind: st
     kit_info = {"kit_commit": None, "kit_dirty": None}
     if arm_kind == ARM_FVK:
         kit_info = _copy_kit(kit_src or kit_dir(), ws / "formal-verification-kit")
+
+    # --- official eval image (docker grading only): present BEFORE the session
+    # starts, so scripts/private_eval.py never needs registry access mid-run.
+    instance_image = None
+    if docker_grading and ensure_image:
+        build_dir = ws / ".build"
+        build_dir.mkdir(exist_ok=True)
+        instance_image = ensure_instance_image(row, log=build_dir / "image.log")
 
     # --- repo: truncated checkout, venv, then the synthetic base commit ----
     repo_dir = ws / "repo"
@@ -1216,9 +1408,13 @@ def build_workspace(cfg: Config, run_dir: Path, instance_row: dict, arm_kind: st
         "repo_local_head": local_head,
         "venv": venv_info,
         # v2 multi-repo provenance: whether we pre-built the env (vs agent
-        # self-build in Phase 0) and which grading backend the evaluator uses.
+        # self-build in Phase 0), which grading backend the evaluator uses, the
+        # protocol version it was derived from, and (docker backend) the local
+        # name of the official eval image that was verified/pulled at build time.
         "prebuilt_env": do_build_venv,
         "grading_backend": grading_backend,
+        "protocol_version": protocol_version(cfg),
+        "instance_image": instance_image,
         **kit_info,
         "staged": staged,
         # Provenance for the out-of-workspace answer key (NOT inside ws).

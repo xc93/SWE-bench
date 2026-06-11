@@ -207,6 +207,34 @@ def cmd_isolation_probe(args) -> int:
     return 0
 
 
+def cmd_prepull_images(args) -> int:
+    """Warm the local docker cache with each pinned instance's OFFICIAL eval
+    image (the v2 in-session evaluator and the final harness both use it).
+    Sequential on purpose: registry-1.docker.io flakes under parallel pulls on
+    this host. Re-runnable; already-present images are instant."""
+    from fvk_bench.agentic import ensure_instance_image, instance_image_candidates
+    from fvk_bench.data import load_full_rows
+
+    cfg = load_config(args.config)
+    rows = load_full_rows(cfg)
+    failed: list[str] = []
+    for i, iid in enumerate(cfg.dataset.instance_ids, 1):
+        try:
+            name = ensure_instance_image(rows[iid], retries=args.retries)
+            print(f"[{i}/{len(cfg.dataset.instance_ids)}] ok {iid}: {name}", flush=True)
+        except Exception as e:  # noqa: BLE001 — keep pulling the rest
+            failed.append(iid)
+            print(f"[{i}/{len(cfg.dataset.instance_ids)}] FAILED {iid}: "
+                  f"{str(e)[-300:]}", flush=True)
+            print(f"    candidates were: {instance_image_candidates(rows[iid])}",
+                  flush=True)
+    if failed:
+        print(f"\n{len(failed)} image(s) NOT available — rerun before the arm: {failed}")
+        return 1
+    print(f"\nall {len(cfg.dataset.instance_ids)} eval images present")
+    return 0
+
+
 def cmd_build_demos(args) -> int:
     from fvk_bench.demos import build_content
 
@@ -266,6 +294,14 @@ def main() -> int:
     pi.add_argument("--keep", action="store_true",
                     help="keep the throwaway workspace dir")
     pi.set_defaults(fn=cmd_isolation_probe)
+
+    pq = sub.add_parser("prepull-images",
+                        help="pull each pinned instance's official eval image "
+                             "(sequential; rerun until clean before a v2 arm)")
+    pq.add_argument("--config", required=True)
+    pq.add_argument("--retries", type=int, default=2,
+                    help="extra pull attempts per image (docker hub flakes)")
+    pq.set_defaults(fn=cmd_prepull_images)
 
     pd = sub.add_parser("build-demos",
                         help="freeze demo content JSON from a demos registry YAML")

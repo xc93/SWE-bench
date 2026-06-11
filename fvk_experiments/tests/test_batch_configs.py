@@ -248,6 +248,7 @@ def _build(tmp_path, mini_repo, *, prebuild_env, grading_backend):
         cfg, run_dir, _row(mini_repo), "fvk-replicate",
         repo_src=str(mini_repo["path"]), build_venv=False,
         prebuild_env=prebuild_env, grading_backend=grading_backend,
+        ensure_image=False,  # hermetic: never inspect/pull docker images
         workspaces_dir=tmp_path / "workspaces")
 
 

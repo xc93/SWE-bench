@@ -1,69 +1,27 @@
----
-version: 2
-date: 2026-06-11
-tag: baseline
-derived_from: baseline.md
-source: >
-  v2 of the agentic baseline template for the 45-instance multi-repo
-  (Grigore-set) run. Single-pass arm: read the public problem, produce one
-  best-effort patch at patches/solution.patch, brief final report. Wording
-  copied verbatim from baseline.md (v1) EXCEPT the Workspace Setup section,
-  which changes from "verify a pre-built env" to "set up or verify the env"
-  (agent self-build; see notes). v1 stays frozen and astropy-only.
-notes: >
-  Same shared ground rules as the other two v2 arms (public info only; no gold
-  patch; no hidden tests; no web lookup of the original fix/PR/issue). No phases,
-  no evaluator, no answer key staged: this arm makes no reference to
-  private_eval/, swebench_row_full.json, or scripts/private_eval.py. The only
-  change from v1 is the Workspace Setup section: the Python environment is agent
-  self-built when not pre-staged (a .venv is pre-staged only for the hard
-  compiled-dependency instances). The repo is still staged with truncated history
-  and no remote (no clone, no remote), preserving v1's leak-safety. Running the
-  repo's own public tests locally is explicitly encouraged.
-deviations:
-  - >
-    (b-v2) Workspace Setup is now AGENT SELF-BUILD, not pre-built-env verification.
-    repo/ is staged (history-truncated, no remote); a .venv is pre-staged only for
-    hard compiled-dependency instances, otherwise the agent creates it and installs
-    the repo editable plus pytest. Supersedes v1's pre-built-workspace assumption.
-fields:
-  - instance_id
-  - repo
-  - repo_url
-  - base_commit
-  - base_commit_url
-  - repo_title
-  - module_name
-  - version
-  - difficulty
-  - fail_to_pass_count
-  - pass_to_pass_count
-  - row_url
-  - public_issue_gist
-  - likely_files_block
----
-# Prompt for Fresh Coding Agent: Single-Pass Baseline on `{instance_id}`
+<!-- RECONSTRUCTED PROMPT: auto-generated from the public issue; NOT Grigore's verbatim. Only astropy-13236 is verbatim. -->
 
-You are a fresh coding agent. Solve the SWE-bench Verified instance `{instance_id}`.
+# Prompt for Fresh Coding Agent: Single-Pass Baseline on `django__django-10554`
+
+You are a fresh coding agent. Solve the SWE-bench Verified instance `django__django-10554`.
 
 Your goal is to produce the best patch you can, in a single pass, using only public information.
 
 ## Instance
 
 - Dataset: `princeton-nlp/SWE-bench_Verified`
-- Exact row URL: `{row_url}`
-- Instance ID: `{instance_id}`
-- Repository: `{repo_url}`
-- Base commit: `{base_commit}`
-- Base commit URL: `{base_commit_url}`
-- {repo_title} version: `{version}`
-- Difficulty: `{difficulty}`
+- Exact row URL: `https://datasets-server.huggingface.co/rows?dataset=princeton-nlp%2FSWE-bench_Verified&config=default&split=test&offset=23&length=1`
+- Instance ID: `django__django-10554`
+- Repository: `https://github.com/django/django.git`
+- Base commit: `14d026cccb144c6877294ba4cd4e03ebf0842498`
+- Base commit URL: `https://github.com/django/django/commit/14d026cccb144c6877294ba4cd4e03ebf0842498`
+- Django version: `3.0`
+- Difficulty: `1-4 hours`
 
 Known evaluator shape:
 
-- `FAIL_TO_PASS`: {fail_to_pass_count} tests
-- `PASS_TO_PASS`: {pass_to_pass_count} tests
-- Official resolution criterion: resolved iff `FAIL_TO_PASS = {fail_to_pass_count}/{fail_to_pass_count}` and `PASS_TO_PASS = {pass_to_pass_count}/{pass_to_pass_count}`.
+- `FAIL_TO_PASS`: 2 tests
+- `PASS_TO_PASS`: 23 tests
+- Official resolution criterion: resolved iff `FAIL_TO_PASS = 2/2` and `PASS_TO_PASS = 23/23`.
 
 ## Benchmark Discipline
 
@@ -76,7 +34,7 @@ These rules are mandatory.
 2. Do not inspect or use the gold `patch` field.
 3. Do not manually inspect or use the hidden `test_patch` field.
 4. Do not inspect hidden test names, hidden assertions, or hidden failure traces.
-5. Do not search for the original {repo_title} PR, issue thread, or solution for this issue.
+5. Do not search for the original Django PR, issue thread, or solution for this issue.
 6. Do not attempt to access hidden tests or a reference solution: produce a single patch and stop.
 
 ## Workspace Setup
@@ -85,7 +43,7 @@ Your current working directory is a staged workspace containing:
 
     benchmark/PROMPT.md                  # public instance fields + problem statement
     benchmark/public_instance.json       # public fields only
-    repo/                                # {repo} checked out at the base commit (truncated history, no remote)
+    repo/                                # django/django checked out at the base commit (truncated history, no remote)
     .venv/                               # MAY be pre-staged (hard compiled-deps only); otherwise you create it below
 
 Use or create: `patches/`, `reports/`.
@@ -97,11 +55,11 @@ A `.venv/` may already be staged for this instance. First check whether it works
     cd repo
     git rev-parse HEAD
     cd ..
-    .venv/bin/python -c "import {module_name}; print({module_name}.__version__)" 2>/dev/null && echo "venv OK" || echo "need to build venv"
+    .venv/bin/python -c "import django; print(django.__version__)" 2>/dev/null && echo "venv OK" || echo "need to build venv"
 
 If `.venv/` is already staged and works, verify it and use it. Otherwise create one and install the repo and its test dependencies yourself. Prefer repo instructions; practical fallback:
 
-    export SETUPTOOLS_SCM_PRETEND_VERSION={version}  # the staged checkout has truncated history (no tags), which otherwise breaks setuptools-scm version detection
+    export SETUPTOOLS_SCM_PRETEND_VERSION=3.0  # the staged checkout has truncated history (no tags), which otherwise breaks setuptools-scm version detection
     uv venv --python 3.9 .venv || uv venv --python 3.11 .venv || python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install -U pip setuptools wheel
@@ -112,8 +70,8 @@ Install enough public test dependencies to run relevant tests.
 
 Confirm that:
 
-- `repo/` is checked out at base commit `{base_commit}`;
-- `.venv/bin/python` imports `{module_name}` from your environment;
+- `repo/` is checked out at base commit `14d026cccb144c6877294ba4cd4e03ebf0842498`;
+- `.venv/bin/python` imports `django` from your environment;
 - the test runner works: run one quick public test already present under `repo/`.
 
 Record what you did and verified in `reports/setup_notes.md`. Running the repo's own public tests locally is encouraged. Do not modify `repo/` source files during setup; only change source as part of your patch below.
@@ -126,7 +84,7 @@ Read only:
 - source files under `repo/`
 - existing public tests already present under `repo/`
 
-{likely_files_block}{public_issue_gist}
+The public issue is: "Union queryset with ordering breaks on ordering with derived querysets".
 
 Generate your best patch using only public information.
 
@@ -142,19 +100,19 @@ When the patch is complete, save it:
 
 Write `reports/final_report.md` with this structure:
 
-    # SWE-bench Baseline: {instance_id}
+    # SWE-bench Baseline: django__django-10554
 
     ## Benchmark
 
     - Dataset: princeton-nlp/SWE-bench_Verified
-    - Exact row URL: {row_url}
-    - Repo: {repo}
-    - Repo URL: {repo_url}
-    - Instance ID: {instance_id}
-    - Base commit: {base_commit}
-    - Base commit URL: {base_commit_url}
-    - Version: {version}
-    - Difficulty: {difficulty}
+    - Exact row URL: https://datasets-server.huggingface.co/rows?dataset=princeton-nlp%2FSWE-bench_Verified&config=default&split=test&offset=23&length=1
+    - Repo: django/django
+    - Repo URL: https://github.com/django/django.git
+    - Instance ID: django__django-10554
+    - Base commit: 14d026cccb144c6877294ba4cd4e03ebf0842498
+    - Base commit URL: https://github.com/django/django/commit/14d026cccb144c6877294ba4cd4e03ebf0842498
+    - Version: 3.0
+    - Difficulty: 1-4 hours
 
     ## Benchmark Discipline
 

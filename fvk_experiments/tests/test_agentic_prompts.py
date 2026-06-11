@@ -566,3 +566,76 @@ def test_v1_astropy_path_unchanged_by_generalization():
     # and the frozen residual-diff fidelity test (defined above) still holds —
     # re-assert the core field here as a guard against import-map drift.
     assert import_name_for("astropy/astropy") == "astropy"
+
+
+def test_v2_phase0_restores_grigores_verbatim_install_recipe():
+    """Owner decision (1): Phase 0's fallback recipe is Grigore's verbatim
+    sympy-sample Phase 0 (uv venv 3.9 || 3.11 || stdlib venv; pip bootstrap;
+    editable install; pytest; 'Install enough public test dependencies'),
+    adapted only by (a) installing the STAGED repo and (b) the
+    SETUPTOOLS_SCM_PRETEND_VERSION export compensating for our
+    truncated-history staging. Identical across all three arms (info parity).
+    """
+    his = (AGENTIC_DIR / "source" / "sympy__sympy-17630_fvk_prompt.md").read_text()
+    # the recipe lines that must come from his prompt verbatim
+    for verbatim in (
+        "uv venv --python 3.9 .venv || uv venv --python 3.11 .venv || python3 -m venv .venv",
+        "source .venv/bin/activate",
+        "python -m pip install -U pip setuptools wheel",
+        "python -m pip install pytest || true",
+        "Install enough public test dependencies to run relevant tests.",
+    ):
+        assert verbatim in his, f"not actually in his prompt: {verbatim!r}"
+    blocks = {}
+    for arm in ARMS:
+        body = load_template(V2_PATHS[arm])
+        for verbatim in (
+            "uv venv --python 3.9 .venv || uv venv --python 3.11 .venv || python3 -m venv .venv",
+            "source .venv/bin/activate",
+            "python -m pip install -U pip setuptools wheel",
+            "python -m pip install pytest || true",
+            "Install enough public test dependencies to run relevant tests.",
+            # the two declared adaptations
+            "(cd repo && python -m pip install -e .) || true",
+            "export SETUPTOOLS_SCM_PRETEND_VERSION={version}",
+            # the owner-specified prestaged-venv line
+            "If `.venv/` is already staged and works, verify it and use it.",
+        ):
+            assert verbatim in body, (arm, verbatim)
+        # info parity: the whole fallback block is byte-identical across arms
+        start = body.index("If `.venv/` is already staged and works")
+        end = body.index("Install enough public test dependencies")
+        blocks[arm] = body[start:end]
+    assert blocks["fvk-replicate"] == blocks["review-control"] == blocks["baseline"]
+
+
+def test_v2_phased_grading_line_notes_official_image():
+    """Decision (3) disclosure: the deviation-(c) grading line carries the
+    official-evaluation-environment note in both phased v2 arms (baseline has
+    no evaluator and must not mention grading at all)."""
+    note = ("Its scores are computed inside the instance's official SWE-bench "
+            "evaluation environment, so they match the official grader.")
+    for arm in ("fvk-replicate", "review-control"):
+        assert note in load_template(V2_PATHS[arm]), arm
+    base = load_template(V2_PATHS["baseline"])
+    assert "Grading" not in base and "official grader" not in base
+
+
+def test_v2_previews_and_control_diff_exist():
+    """Committed v2 review artifacts: one preview per Grigore-set repo per arm
+    (8 x 3) and the v2 control diff. Regenerate via
+    scripts/build_agentic_previews.py; content correctness is covered by the
+    instantiation tests above (previews are for human review)."""
+    per_repo = [
+        "django__django-10554", "sympy__sympy-17630", "sphinx-doc__sphinx-9461",
+        "astropy__astropy-13398", "pytest-dev__pytest-5787", "pydata__xarray-3993",
+        "pylint-dev__pylint-4551", "scikit-learn__scikit-learn-25102",
+    ]
+    for arm in ARMS:
+        for iid in per_repo:
+            assert (PREVIEWS / f"{arm}-v2" / f"{iid}.md").exists(), (arm, iid)
+    diff = (AGENTIC_DIR / "CONTROL_DIFF-v2.md").read_text()
+    assert diff.startswith("# fvk-replicate-v2 vs review-control-v2")
+    # the v2-shared Phase 0 must NOT appear in the arm diff (identical by design)
+    assert "uv venv --python 3.9" not in diff
+    assert "SETUPTOOLS_SCM_PRETEND_VERSION" not in diff

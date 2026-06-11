@@ -510,9 +510,53 @@ def test_clean_transcript_audits_clean():
     ]
     audit = audit_transcript(events, [F2P_ID])
     assert audit["counts"] == {"denied_tool_attempts": 0, "network_bash_commands": 0,
+                               "installer_bash_commands": 0, "docker_bash_commands": 0,
                                "private_row_reads": 0, "private_eval_script_edits": 0,
                                "f2p_leaks_before_eval": 0}
     assert audit["private_eval_invocations"] == 1
+
+
+def _bash_events(*cmds):
+    return [{"type": "assistant", "message": {"content": [
+        {"type": "tool_use", "name": "Bash", "input": {"command": c}}]}}
+        for c in cmds]
+
+
+def test_audit_flags_git_clone_as_network_reach():
+    """The staged-repo leak fence: a clone would resurrect upstream history."""
+    audit = audit_transcript(_bash_events(
+        "git clone https://github.com/astropy/astropy.git repo2"), [F2P_ID])
+    assert audit["counts"]["network_bash_commands"] == 1
+    assert audit["contaminated"] is False  # informational, not auto-invalidating
+
+
+def test_audit_counts_installs_separately_not_as_network():
+    """v2 Phase 0 sanctions pip/uv self-builds: recorded as installer commands,
+    NOT as suspicious network reach (keeps the network list reviewable)."""
+    audit = audit_transcript(_bash_events(
+        "python3 -m venv .venv",
+        ".venv/bin/python -m pip install -e .",
+        "pip install pytest",
+        "uv venv --python 3.9 .venv",
+        "uv pip install pytest"), [F2P_ID])
+    assert audit["counts"]["network_bash_commands"] == 0
+    # 2 pip installs + uv venv + uv pip install; stdlib `python3 -m venv` is not
+    # an installer (no package fetch), so 4 of the 5 commands count.
+    assert audit["counts"]["installer_bash_commands"] == 4
+    assert audit["contaminated"] is False
+
+
+def test_audit_counts_direct_docker_use_but_not_via_evaluator():
+    """Direct docker from the agent's bash is counted (the only sanctioned docker
+    path is inside scripts/private_eval.py); evaluator invocations are not."""
+    audit = audit_transcript(_bash_events(
+        "docker ps",
+        "docker exec abc cat /fvk_eval.sh",
+        ".venv/bin/python scripts/private_eval.py patches/solution_v1.patch v1"),
+        [F2P_ID])
+    assert audit["counts"]["docker_bash_commands"] == 2
+    assert audit["private_eval_invocations"] == 1
+    assert audit["contaminated"] is False
 
 
 def test_session_status_mapping():
@@ -983,3 +1027,384 @@ def test_report_lists_contaminated_prominently(tmp_path):
     assert "i-1 ⚠️ CONTAMINATED" in md
     s = json.loads((rd / "summary.json").read_text())
     assert s["contaminated_ids"] == ["i-1"]
+
+
+# ---------------------------------------------------------------------------
+# 9. v2 docker-grading evaluator — hermetic via a FVK_DOCKER_BIN shim.
+#    The shim emulates the exact docker subcommands the evaluator issues
+#    (image inspect / pull / run / cp / exec / rm) and serves a canned eval
+#    log, so the full three-line contract is exercised with NO docker daemon.
+# ---------------------------------------------------------------------------
+
+_DOCKER_SHIM = '''#!/usr/bin/env python3
+import json, os, sys
+args = sys.argv[1:]
+log = os.environ.get("SHIM_LOG")
+if log:
+    with open(log, "a") as fh:
+        fh.write(json.dumps(args) + "\\n")
+cmd = args[0] if args else ""
+state = os.environ.get("SHIM_STATE_DIR", "")
+pulled = state and os.path.exists(os.path.join(state, "pulled"))
+if cmd == "image":  # image inspect <name>
+    sys.exit(0 if (os.environ.get("SHIM_HAVE_IMAGE", "1") == "1" or pulled) else 1)
+if cmd == "pull":
+    rc = int(os.environ.get("SHIM_PULL_RC", "1"))
+    if rc == 0 and state:
+        open(os.path.join(state, "pulled"), "w").close()
+    sys.exit(rc)
+if cmd == "run":
+    print("c0ffee0123456789")
+    sys.exit(0)
+if cmd == "cp":
+    sys.exit(0)
+if cmd == "exec":
+    joined = " ".join(args)
+    if "/fvk_eval.sh" in joined:
+        out = os.environ.get("SHIM_EVAL_OUTPUT_FILE")
+        if out:
+            sys.stdout.write(open(out).read())
+        sys.exit(int(os.environ.get("SHIM_EVAL_RC", "0")))
+    sys.exit(int(os.environ.get("SHIM_APPLY_RC", "0")))  # the git-apply chain
+if cmd == "rm":
+    sys.exit(0)
+sys.exit(0)
+'''
+
+# Canned in-container eval output: official xtrace markers + pytest -rA lines
+# for the fixture ids. The parametrized P2P id contains spaces, so the parser
+# whitespace-truncates it to exactly the dataset's truncated id.
+_EVAL_OUT_ALL_PASS = (
+    "+ : '>>>>> Start Test Output'\n"
+    "PASSED tests/test_added.py::test_add_fixed_behavior\n"
+    "PASSED tests/test_existing.py::test_mul\n"
+    "PASSED tests/test_existing.py::test_param[ceci n'est pas une mapping]\n"
+    "+ : '>>>>> End Test Output'\n")
+_EVAL_OUT_F2P_FAILS = (
+    "+ : '>>>>> Start Test Output'\n"
+    "FAILED tests/test_added.py::test_add_fixed_behavior - AssertionError\n"
+    "PASSED tests/test_existing.py::test_mul\n"
+    "PASSED tests/test_existing.py::test_param[ceci n'est pas une mapping]\n"
+    "+ : '>>>>> End Test Output'\n")
+
+
+def _stub_eval_payload():
+    return {"mode": "docker-image",
+            "image_candidates": ["swebench/sweb.eval.x86_64.tinypkg_1776_x:latest",
+                                 "sweb.eval.x86_64.tinypkg__x:latest"],
+            "eval_script": "#!/bin/bash\nset -uxo pipefail\necho unused-by-shim\n",
+            "parser": "pytest",
+            "timeout_s": 60}
+
+
+def _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    """A phased workspace with the DOCKER evaluator staged (hermetic: the
+    fixture repo is not in the swebench spec map, so the staging payload is
+    stubbed; ensure_image=False skips the build-time docker touch)."""
+    monkeypatch.setattr(agentic, "docker_eval_staging",
+                        lambda row, timeout_s=1800: _stub_eval_payload())
+    cfg = _cc_cfg(tmp_path, "fvk-replicate")
+    run_dir = tmp_path / "runs" / "r-docker"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    ws = build_workspace(cfg, run_dir, _fake_row(fixture_repo), "fvk-replicate",
+                         repo_src=str(fixture_repo["path"]),
+                         kit_src=fixture_kit["path"], build_venv=False,
+                         grading_backend=agentic.GRADING_DOCKER,
+                         ensure_image=False,
+                         workspaces_dir=tmp_path / "workspaces")
+    return ws, run_dir
+
+
+def _shim_env(tmp_path, **over):
+    shim = tmp_path / "docker-shim"
+    if not shim.exists():
+        shim.write_text(_DOCKER_SHIM)
+        shim.chmod(0o755)
+    env = dict(os.environ)
+    env["FVK_DOCKER_BIN"] = str(shim)
+    env["SHIM_LOG"] = str(tmp_path / "shim.jsonl")
+    env.update({k: str(v) for k, v in over.items()})
+    return env
+
+
+def _run_docker_eval(ws, tmp_path, patch_text, tag, **shim_over):
+    pf = ws / "patches" / f"{tag}.patch"
+    pf.write_text(patch_text)
+    env = _shim_env(tmp_path, **shim_over)
+    return subprocess.run([sys.executable, str(ws / "scripts" / "private_eval.py"),
+                           str(pf), tag], capture_output=True, text=True,
+                          timeout=120, env=env), env
+
+
+def _shim_calls(env):
+    log = Path(env["SHIM_LOG"])
+    return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+
+
+def test_docker_eval_three_line_contract_and_call_sequence(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    ws, run_dir = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    out_file = tmp_path / "eval-out.txt"
+    out_file.write_text(_EVAL_OUT_ALL_PASS)
+    p, env = _run_docker_eval(ws, tmp_path, fixture_repo["gold_patch"], "gold",
+                              SHIM_EVAL_OUTPUT_FILE=out_file)
+    assert p.returncode == 0, p.stderr
+    assert p.stdout.splitlines() == [
+        "FAIL_TO_PASS 1/1", "PASS_TO_PASS 2/2", "resolved: true"]
+    _assert_no_test_names(p)
+    calls = _shim_calls(env)
+    verbs = [c[0] for c in calls]
+    # image resolved, container started, patch copied, applied, eval ran, removed
+    assert "image" in verbs and "run" in verbs and "rm" in verbs
+    applies = [c for c in calls if c[0] == "exec" and "git apply" in " ".join(c)]
+    assert applies and "git apply --verbose" in " ".join(applies[0])
+    assert any(c[0] == "exec" and "/fvk_eval.sh" in " ".join(c) for c in calls)
+    # rm -f runs LAST (cleanup in finally)
+    assert calls[-1][0] == "rm"
+    # aggregates appended to the in-workspace eval log; no test names there
+    log = (ws / "private_eval" / "eval_log.jsonl").read_text()
+    assert '"tag": "gold"' in log and "test_add" not in log
+    # forensics (full container output) live NEXT TO THE ROW, outside the ws
+    forensics = run_dir / "private" / IID / "private_eval_logs" / "gold.log"
+    assert forensics.exists()
+    assert "test_add_fixed_behavior" in forensics.read_text()
+    assert not (ws / "private_eval_logs").exists()
+
+
+def test_docker_eval_empty_patch_skips_apply_runs_base(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    ws, _ = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    out_file = tmp_path / "eval-out.txt"
+    out_file.write_text(_EVAL_OUT_F2P_FAILS)
+    p, env = _run_docker_eval(ws, tmp_path, "", "empty",
+                              SHIM_EVAL_OUTPUT_FILE=out_file)
+    assert p.returncode == 0, p.stderr
+    assert p.stdout.splitlines() == [
+        "FAIL_TO_PASS 0/1", "PASS_TO_PASS 2/2", "resolved: false"]
+    _assert_no_test_names(p)
+    calls = _shim_calls(env)
+    # no patch copy and no apply attempt for an empty patch; eval still runs
+    assert not any(c[0] == "cp" and "fvk_patch" in " ".join(c) for c in calls)
+    assert not any("git apply" in " ".join(c) for c in calls)
+    assert any("/fvk_eval.sh" in " ".join(c) for c in calls)
+
+
+def test_docker_eval_unappliable_patch_reports_zeros_official_chain(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    ws, _ = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    p, env = _run_docker_eval(ws, tmp_path, "diff --git a/x b/x\n--- a/x\n+++ b/x\n",
+                              "bad", SHIM_APPLY_RC=1)
+    assert p.returncode == 0
+    assert p.stdout.splitlines() == [
+        "FAIL_TO_PASS 0/1", "PASS_TO_PASS 0/2", "resolved: false"]
+    assert "did not apply" in p.stderr
+    _assert_no_test_names(p)
+    calls = _shim_calls(env)
+    applies = [" ".join(c) for c in calls if c[0] == "exec" and "/fvk_eval.sh" not in " ".join(c)]
+    # the OFFICIAL three-step apply chain was attempted in order
+    assert len(applies) == 3
+    assert "git apply --verbose /tmp" in applies[0]
+    assert "git apply --verbose --reject" in applies[1]
+    assert "patch --batch --fuzz=5 -p1 -i" in applies[2]
+    # tests never ran
+    assert not any("/fvk_eval.sh" in a for a in applies)
+    # container still cleaned up
+    assert calls[-1][0] == "rm"
+
+
+def test_docker_eval_missing_image_and_failed_pull_is_infra_error(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    ws, _ = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    p, env = _run_docker_eval(ws, tmp_path, "x", "noimg",
+                              SHIM_HAVE_IMAGE=0, SHIM_PULL_RC=1)
+    assert p.returncode == 2
+    assert p.stdout == ""
+    assert "internal error" in p.stderr
+    _assert_no_test_names(p)
+
+
+def test_docker_eval_markerless_output_counts_zero(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    """If the in-container eval produced no official markers (e.g. crashed or
+    timed out), the official semantics are 'tests failed', not infra error."""
+    ws, _ = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    out_file = tmp_path / "eval-out.txt"
+    out_file.write_text("catastrophic bash error, no markers\n")
+    p, _ = _run_docker_eval(ws, tmp_path, fixture_repo["gold_patch"], "nomark",
+                            SHIM_EVAL_OUTPUT_FILE=out_file)
+    assert p.returncode == 0
+    assert p.stdout.splitlines() == [
+        "FAIL_TO_PASS 0/1", "PASS_TO_PASS 0/2", "resolved: false"]
+
+
+def test_docker_workspace_script_is_stdlib_only_and_baked(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    ws, _ = _build_docker_ws(tmp_path, fixture_repo, fixture_kit, monkeypatch)
+    script = (ws / "scripts" / "private_eval.py").read_text()
+    m = json.loads((ws / "manifest.json").read_text())
+    assert f'ROW_PATH = r"{m["row_path"]}"' in script
+    assert "__ROW_PATH__" not in script
+    # stdlib-only: no swebench import, no host venv path; docker via CLI only
+    assert "import swebench" not in script and "from swebench" not in script
+    assert ".venv/bin/python" not in script
+    # no hidden content in the workspace: eval_script/test ids live in row.json
+    assert "test_add_fixed_behavior" not in script
+    assert m["grading_backend"] == "docker"
+    assert m["instance_image"] is None  # ensure_image=False in hermetic builds
+
+
+# --------------------------------------------------- parser-port parity -----
+
+_PARITY_SAMPLES = {
+    "pytest": ("PASSED tests/test_a.py::test_x\n"
+               "FAILED tests/test_b.py::test_y - boom\n"
+               "SKIPPED [1] tests/test_c.py::test_z\nnoise line\n"),
+    "pytest_v2": ("\x1b[32mPASSED\x1b[0m tests/t.py::test_k\n"
+                  "tests/t.py::test_old_style PASSED\n"
+                  "FAILED a.py::t2 - err\nXFAIL tests/t.py::test_xf\n"),
+    "pytest_options": ("PASSED tests/t.py::test_opt[/long/path/opt]\n"
+                       "PASSED tests/t.py::test_opt2[//keep/me]\n"
+                       "FAILED tests/t.py::test_o[x*y] - z\n"
+                       "PASSED tests/t.py::test_plain\n"),
+    "django": ("test_a (m.Tests) ... ok\n"
+               "test_b (m.Tests) ... FAIL\n"
+               "test_sk (m.Tests) ... skipped 'why'\n"
+               "FAIL: test_d (m.Other)\n"
+               "ERROR: test_e (m.Other)\n"
+               "test_f (m.Tests) ... ERROR\n"
+               "test_g (m.T) ... Internal Server Error: /x/\nok\n"),
+    "sympy": ("test_alpha ok\ntest_beta F\ntest_gamma E\n"
+              "________ sympy/core/tests/test_z.py:test_q ________\n"),
+}
+
+
+def test_embedded_parser_ports_match_official_swebench_parsers():
+    """THE drift guard for decision (3): the evaluator's embedded parser ports
+    must produce byte-identical status maps to the official swebench parsers
+    for every supported parser id."""
+    from swebench.harness.log_parsers.python import (
+        parse_log_django, parse_log_pytest, parse_log_pytest_options,
+        parse_log_pytest_v2, parse_log_sympy)
+
+    official = {"pytest": parse_log_pytest, "pytest_v2": parse_log_pytest_v2,
+                "pytest_options": parse_log_pytest_options,
+                "django": parse_log_django, "sympy": parse_log_sympy}
+    ns = {"__file__": "/tmp/ws/scripts/private_eval.py", "__name__": "pe"}
+    exec(agentic.PRIVATE_EVAL_SCRIPT_DOCKER.replace("__ROW_PATH__", "/tmp/x"), ns)
+    for kind, log in _PARITY_SAMPLES.items():
+        port = ns["parse_statuses"](log, kind)
+        want = official[kind](log, None)
+        assert port == want, (kind, port, want)
+        assert port, f"sample for {kind} parsed to nothing — weak sample"
+
+
+def test_supported_eval_parser_covers_all_eight_grigore_repos():
+    want = {
+        "astropy/astropy": "pytest_v2",
+        "scikit-learn/scikit-learn": "pytest_v2",
+        "sphinx-doc/sphinx": "pytest_v2",
+        "pydata/xarray": "pytest",
+        "pytest-dev/pytest": "pytest",
+        "pylint-dev/pylint": "pytest_options",
+        "django/django": "django",
+        "sympy/sympy": "sympy",
+    }
+    for repo, parser in want.items():
+        assert agentic.supported_eval_parser(repo) == parser, repo
+    with pytest.raises(ValueError, match="docker grading unsupported"):
+        agentic.supported_eval_parser("fixture/tinypkg")
+
+
+# ----------------------------------------------- ensure_instance_image ------
+
+def test_ensure_instance_image_prefers_existing_local(tmp_path, monkeypatch):
+    env = _shim_env(tmp_path, SHIM_HAVE_IMAGE=1)
+    for k, v in env.items():
+        if k.startswith(("FVK_", "SHIM_")):
+            monkeypatch.setenv(k, v)
+    name = agentic.ensure_instance_image({"instance_id": "astropy__astropy-13398"})
+    assert name == "swebench/sweb.eval.x86_64.astropy_1776_astropy-13398:latest"
+    calls = _shim_calls(env)
+    assert [c[0] for c in calls] == [
+        "image"]  # first candidate hit; no pull, no second inspect
+
+
+def test_ensure_instance_image_pulls_when_missing(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    state.mkdir()
+    env = _shim_env(tmp_path, SHIM_HAVE_IMAGE=0, SHIM_PULL_RC=0,
+                    SHIM_STATE_DIR=state)
+    for k, v in env.items():
+        if k.startswith(("FVK_", "SHIM_")):
+            monkeypatch.setenv(k, v)
+    name = agentic.ensure_instance_image({"instance_id": "pydata__xarray-3993"})
+    assert name == "swebench/sweb.eval.x86_64.pydata_1776_xarray-3993:latest"
+    verbs = [c[0] for c in _shim_calls(env)]
+    assert "pull" in verbs
+
+
+def test_ensure_instance_image_raises_after_failed_pulls(tmp_path, monkeypatch):
+    env = _shim_env(tmp_path, SHIM_HAVE_IMAGE=0, SHIM_PULL_RC=1)
+    for k, v in env.items():
+        if k.startswith(("FVK_", "SHIM_")):
+            monkeypatch.setenv(k, v)
+    with pytest.raises(RuntimeError, match="cannot obtain official eval image"):
+        agentic.ensure_instance_image({"instance_id": "x__y-1"}, retries=1)
+    pulls = [c for c in _shim_calls(env) if c[0] == "pull"]
+    assert len(pulls) == 2  # retries=1 -> two attempts
+
+
+# ------------------------------- protocol-keyed defaults in build_workspace --
+
+def _cfg_with_real_template(tmp_path, template_rel: str):
+    p = tmp_path / f"cfg-{Path(template_rel).stem}.yaml"
+    p.write_text(
+        f"run_name: t-{Path(template_rel).stem}\n"
+        f"tag: fvk-replicate\n"
+        f"dataset:\n  instance_ids: [{IID}]\n"
+        f"model:\n  provider: claude-code\n  name: claude-code-opus-4.6\n"
+        f"  cc_model: claude-opus-4-6\n"
+        f"prompt:\n  system_prompt: {template_rel}\n")
+    from fvk_bench.config import load_config as _lc
+    return _lc(p)
+
+
+def test_build_workspace_grading_defaults_follow_template_version(
+        tmp_path, fixture_repo, fixture_kit, monkeypatch):
+    """No-knob builds resolve the grading backend from the template's
+    frontmatter version: v1 -> local evaluator (astropy10 unchanged), v2 ->
+    docker evaluator. run_instance passes no knobs, so this IS the production
+    path for the 45-run."""
+    monkeypatch.setattr(agentic, "docker_eval_staging",
+                        lambda row, timeout_s=1800: _stub_eval_payload())
+    for rel, want_backend, want_proto in (
+            ("prompts/agentic/fvk-replicate.md", "local", 1),
+            ("prompts/agentic/fvk-replicate-v2.md", "docker", 2)):
+        cfg = _cfg_with_real_template(tmp_path, rel)
+        run_dir = tmp_path / "runs" / f"r-{want_backend}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        ws = build_workspace(cfg, run_dir, _fake_row(fixture_repo),
+                             "fvk-replicate", repo_src=str(fixture_repo["path"]),
+                             kit_src=fixture_kit["path"], build_venv=False,
+                             ensure_image=False,
+                             workspaces_dir=tmp_path / "workspaces")
+        m = json.loads((ws / "manifest.json").read_text())
+        assert m["grading_backend"] == want_backend, rel
+        assert m["protocol_version"] == want_proto, rel
+        script = (ws / "scripts" / "private_eval.py").read_text()
+        assert ("image_candidates" in script) == (want_backend == "docker"), rel
+
+
+def test_needs_legacy_pip_detects_no_use_pep517():
+    """scikit-learn's image specs install with --no-use-pep517 (dropped in
+    pip 25); the venv builder must downgrade pip for exactly those specs."""
+    assert agentic._needs_legacy_pip(
+        {"install": "python -m pip install -v --no-use-pep517 --no-build-isolation -e ."})
+    assert agentic._needs_legacy_pip(
+        {"install": "python -m pip install -e .",
+         "pre_install": ["pip install --no-use-pep517 x"]})
+    assert not agentic._needs_legacy_pip({"install": "python -m pip install -e .[test]"})
+    assert not agentic._needs_legacy_pip({})
+    # and the real sklearn spec is detected
+    from swebench.harness.constants import MAP_REPO_VERSION_TO_SPECS as M
+    assert agentic._needs_legacy_pip(M["scikit-learn/scikit-learn"]["1.3"])

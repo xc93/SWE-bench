@@ -27,7 +27,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from ..agentic import (ARM_BASELINE, PHASED_KINDS, arm_kind_for_tag,
-                       build_workspace, kit_commit_info, kit_dir, listify)
+                       build_workspace, kit_commit_info, kit_dir, listify,
+                       protocol_version)
 from ..config import Config
 from ..extract import normalize_patch
 from .profile import ensure_sealed_home, sealed_env
@@ -172,11 +173,26 @@ def session_status(events: list[dict], returncode: int, timed_out: bool) -> str:
 # catch python-based reach: `python -c` with urllib/requests/socket, bare
 # `import urllib`, `requests.get(`, urlopen, etc. — a bash agent can reopen the
 # web through the interpreter even with WebSearch/WebFetch denied.
+# `git clone` is flagged here too: the staged repo is the leak fence — a clone
+# would resurrect upstream history (the future fix commit).
+# NOTE pip/uv installs are NOT in this list: under protocol v2 the agent
+# legitimately installs its own environment in Phase 0 (PyPI reach is
+# sanctioned), so installer commands are counted separately below.
 _NET_RE = re.compile(
-    r"\b(curl|wget|git\s+fetch|git\s+pull|pip3?\s+install|"
+    r"\b(curl|wget|git\s+fetch|git\s+pull|git\s+clone|"
     r"urllib|urlopen|requests\.(get|post|request)|import\s+requests|"
     r"import\s+socket|socket\.(socket|create_connection)|httpx|aiohttp|"
     r"nc\s|netcat|ssh\s|scp\s)\b")
+# Sanctioned-under-v2 environment installs (pip / uv): recorded for review, not
+# treated as suspicious network reach.
+_INSTALL_RE = re.compile(
+    r"\b(pip3?\s+install|python3?\s+-m\s+pip\s+install|uv\s+pip\s+install|"
+    r"uv\s+venv)\b")
+# Direct docker use from the agent's bash. The only sanctioned docker path is
+# INSIDE scripts/private_eval.py (the docker-grading evaluator drives its own
+# containers); a session has no legitimate reason to call docker itself, and a
+# determined one could inspect the eval container/image. Counted for review.
+_DOCKER_RE = re.compile(r"\bdocker\b")
 _EVAL_OUT_RE = re.compile(r"FAIL_TO_PASS \d+/\d+")
 _EVAL_INVOKE_RE = re.compile(r"private_eval\.py\s+\S+")
 _EDITISH_RE = re.compile(r"(sed\s+-i|\btee\b|>>?\s*\S*private_eval\.py)")
@@ -253,8 +269,14 @@ def audit_transcript(events: list[dict], f2p_ids: list[str],
     `contaminated` is True iff the transcript read the answer-key row OR a hidden
     FAIL_TO_PASS name leaked before the first eval output. The caller invalidates
     such instances (empty prediction).
+
+    Two informational (non-contaminating) counters support the v2 protocol:
+    `installer_bash_commands` (pip/uv — the sanctioned Phase-0 self-build) and
+    `docker_bash_commands` (direct docker use outside private_eval.py — never
+    needed by an honest session; reviewable evidence if aggregates look off).
     """
     denied, network, private_reads, script_edits = [], [], [], []
+    installers, docker_cmds = [], []
     leaks_before, mentions = [], []
     eval_invocations = 0
     eval_seen = False
@@ -281,6 +303,10 @@ def audit_transcript(events: list[dict], f2p_ids: list[str],
                     cmd = str(inp.get("command") or "")
                     if _NET_RE.search(cmd):
                         network.append(cmd[:500])
+                    if _INSTALL_RE.search(cmd):
+                        installers.append(cmd[:500])
+                    if _DOCKER_RE.search(cmd) and "private_eval.py" not in cmd:
+                        docker_cmds.append(cmd[:500])
                     if _hits_row(cmd, row_needles):
                         # A bash read of the row: cat/grep/head/python open(...).
                         private_reads.append(f"Bash: {cmd[:500]}")
@@ -316,6 +342,8 @@ def audit_transcript(events: list[dict], f2p_ids: list[str],
         "contamination_evidence": contamination_evidence,
         "denied_tool_attempts": denied,
         "network_bash_commands": network,
+        "installer_bash_commands": installers,
+        "docker_bash_commands": docker_cmds,
         "private_row_reads": private_reads,
         "private_eval_script_edits": script_edits,
         "private_eval_invocations": eval_invocations,
@@ -329,6 +357,8 @@ def audit_transcript(events: list[dict], f2p_ids: list[str],
         "counts": {
             "denied_tool_attempts": len(denied),
             "network_bash_commands": len(network),
+            "installer_bash_commands": len(installers),
+            "docker_bash_commands": len(docker_cmds),
             "private_row_reads": len(private_reads),
             "private_eval_script_edits": len(script_edits),
             "f2p_leaks_before_eval": len(leaks_before),
@@ -584,6 +614,9 @@ def run_agentic_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Pa
         "cc_version": cc_version,
         "max_turns": cfg.model.max_turns,
         "session_timeout_s": cfg.model.session_timeout_s,
+        # v2 provenance: which protocol the template declares (drives the venv
+        # prestage policy + the docker-vs-local grading default per workspace).
+        "protocol_version": protocol_version(cfg),
         "disallowed_tools": DISALLOWED_TOOLS,
         "sealed_home": str(sealed),  # isolation provenance
         **({"kit_dir": str(kit_dir()), **kit_commit_info(kit_dir())}

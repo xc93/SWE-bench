@@ -1,4 +1,4 @@
-# PREP_NOTES — 45-instance multi-repo run (DRAFT, UNVALIDATED)
+# PREP_NOTES — 45-instance multi-repo run (infra VALIDATED 2026-06-12; live-session dry-run still pending)
 
 Drafted on branch `prep-45` in the isolated worktree `SWE-bench-prep45`, while a
 live astropy10 batch runs in the sibling checkout. **Nothing here has been run
@@ -63,7 +63,9 @@ Modified:
     template's frontmatter `version:`), `venv_prestaged(cfg, iid)` (v1 => always
     pre-built so astropy10 is unchanged; v2 => only the hard ids). Aliases
     `HARD_PREBUILD_IDS` / `should_prebuild_env` for id-only callers.
-  - `build_workspace(..., prebuild_env=None, grading_backend="local")`: venv
+  - `build_workspace(..., prebuild_env=None, grading_backend=None)` (None =
+    protocol default: docker for phased v2, local otherwise — see VALIDATION
+    RESULTS below): venv
     decision = `build_venv AND (prebuild_env if given else venv_prestaged(cfg,
     iid))` — `build_venv=False` still hard-skips (tests); manifest records
     `prebuilt_env` + `grading_backend`.
@@ -129,7 +131,7 @@ Unit tests do NOT build any env, call docker, or start a session (the one
 pre-existing real-build integration test stays opt-in behind `AGENTIC_IT=1` and
 is skipped).
 
-## VALIDATION PENDING — run after the astropy10 batch finishes (host free)
+## VALIDATION — executed 2026-06-12 on this host (results below); checklist kept for the record
 
 Everything below needs a free host with docker + network; do it on `prep-45`
 before any 45-run. **The 6-hard-instance prebuilds and the docker-grading repoint
@@ -173,3 +175,107 @@ are UNVALIDATED drafts.**
 Until items 1–5 pass: treat the 6-hard-instance builders and the docker grading
 repoint as drafts. The local backend (`grading_backend="local"`, the v1 default)
 remains the validated, unit-tested path.
+
+---
+
+# VALIDATION RESULTS (2026-06-12, branch prep-45, this host)
+
+Executed with `FVK_WORKSPACES_DIR=/home/xc/.cache/fvk-workspaces-prep45`
+(isolated from the live run's workspace root), docker strictly sequential
+(concurrency 1), NO model session and NO arm config run (the one remaining
+checklist item — the full batch5 dry-run with live sessions — is deliberately
+left for the owner; everything below it is done).
+
+## Hardening landed during validation (post-f6d5ed0, this commit)
+
+1. **Docker grading is now the v2 PROTOCOL DEFAULT** (decision (3) made real):
+   `build_workspace(grading_backend=None)` resolves docker for phased arms under
+   a `version: 2` template and local otherwise, so `run_instance` needs no
+   wiring and every v1 config is byte-for-byte unchanged (re-verified against a
+   rest9 config). `ensure_image` pre-pulls the official image at BUILD time so
+   sessions never need registry access mid-protocol; manifests record
+   `protocol_version` + `instance_image`; run meta records `protocol_version`.
+2. **All-8-repo parser coverage.** The draft evaluator only spoke
+   pytest/pytest_v2 — 31 of the 45 (django 22, sympy 7, pylint 2) would have
+   been ungradable. The evaluator now carries faithful ports of all five
+   official parsers (pytest, pytest_v2, pytest_options, django, sympy);
+   port==official parity is test-enforced per parser
+   (`test_embedded_parser_ports_match_official_swebench_parsers`), and
+   `supported_eval_parser()` maps all 8 Grigore-set repos
+   (`docker_eval_staging` still raises for anything else).
+3. **Hard-venv builder fixes** (found by really building them):
+   `--no-use-pep517` specs (scikit-learn) get an era-appropriate `pip<25`
+   first; the conda-style `spec["packages"]` line is now honored — pip-installed
+   with conda `==` pins relaxed to `~=` + `--prefer-binary` (conda has binaries
+   where PyPI lacks the exact-micro wheel: numpy==1.19.2 has no cp39 wheel,
+   `~=` resolves 1.19.5); `environment.yml` specs are skipped (xarray's
+   pip_packages already carry full pins).
+4. **Templates: Phase 0 re-based onto Grigore's verbatim recipe** (owner item):
+   the sympy-sample fallback block restored verbatim with two declared
+   adaptations (staged-repo install target; SETUPTOOLS_SCM_PRETEND_VERSION
+   export — without it `pip install -e .` fails on setuptools-scm repos like
+   pytest-dev under truncated history). Owner-specified prestaged-venv sentence;
+   byte-identical block across the three arms (test-enforced). Phased arms'
+   grading line discloses official-image scoring. v2 previews (one instance per
+   repo x 3 arms) + CONTROL_DIFF-v2.md committed; v1 previews byte-unchanged.
+5. **Audit extensions** for the v2 reality: `git clone` now counts as network
+   reach (the no-clone fence); pip/uv installs counted separately as
+   `installer_bash_commands` (sanctioned Phase-0 self-build, keeps the network
+   list reviewable); direct `docker` use from the agent's bash counted as
+   `docker_bash_commands` (the only sanctioned docker path is inside
+   private_eval.py). None of these auto-invalidate; row-reads/F2P-leaks still do.
+6. `run.py prepull-images --config <cfg>` — sequential official-image warmer to
+   run before any v2 arm (registry flakes happen; sessions must never pull).
+
+## The validation matrix (real workspaces, official images, gold + empty patch)
+
+One instance per repo, v2 production defaults (no knobs), per-instance numbers
+= `scripts/private_eval.py` output inside the workspace:
+
+| instance | venv policy | image | gold | empty patch |
+|---|---|---|---|---|
+| astropy-13398 [H] | pre-built 147s, py3.9.25, import OK | cached | 4/4 + 68/68 -> resolved: true (60s) | 0/4 + 68/68 -> false |
+| django-10554 | repo-only (none) | pulled | 2/2 + 23/23 -> true (11s) | 0/2 + 23/23 -> false |
+| sympy-17630 | repo-only | pulled | 2/2 + 19/19 -> true (5s) | 0/2 + 19/19 -> false |
+| xarray-3993 [H] | pre-built 694s, xarray 0.12 imports | pulled | 2/2 + 2398/2398 -> true (46s) | 0/2 + 2394/2398 -> false |
+| pytest-5787 | repo-only | pulled | 2/2 + 123/123 -> true (21s) | 0/2 + 123/123 -> false |
+| pylint-4551 | repo-only | pulled | 10/10 + 0/0 -> true (5s) | 0/10 + 0/0 -> false |
+| sphinx-9461 | repo-only | pulled | 3/3 + 59/59 -> true (8s) | 0/3 + 59/59 -> false |
+| sklearn-25102 [H] | pre-built 409s, sklearn 1.3.dev0 imports | pulled 308s | 2/2 + 59/59 -> true (7s) | 0/2 + 59/59 -> false |
+
+- Checklist 2+3 PASS: every repo's gold patch grades `resolved: true` with full
+  n/n + m/m counts and the EXACT three-line contract (no test names anywhere on
+  stdout/stderr; `parse_claimed_aggregates`-compatible); every empty patch
+  grades `resolved: false` with P2P intact. astropy agrees with the official
+  gold-sanity ground truth (astropy10 gold = 10/10 in the live runs). All five
+  parser ports exercised live (pytest_v2: astropy+sphinx; pytest: xarray+pytest;
+  pytest_options: pylint incl. the P2P=0/0 edge; django; sympy).
+- Checklist 1 PARTIAL->PASS for 3 of 6 hard ids built for real (13398,
+  xarray-3993, sklearn-25102 — one per hard repo family, including both
+  builders that needed fixes). astropy-13579/-14369 use the same astropy spec
+  family as 13398; xarray-6992 (v2022.06) uses the same pinned-pip_packages
+  mechanism as 3993. Re-run `build_workspace` for those three before batch
+  2/3/5 if extra assurance is wanted (they are exercised again by the runs'
+  own builds anyway).
+- Checklist 4 PASS with a real payload: the hidden F2P names, test_patch
+  content, and the eval-script heredoc are absent from the workspace tree;
+  they live only in the out-of-workspace `row.json _staging.eval`. Evaluator
+  forensics (full container output) land NEXT TO the row
+  (`<run>/private/<iid>/private_eval_logs/<tag>.log`), never in the workspace;
+  the in-workspace `private_eval/eval_log.jsonl` carries aggregates only.
+  Containers are removed in a finally (verified: no leftovers).
+- Checklist 5 NOT RUN (live agent sessions are out of scope for this prep pass
+  by the worktree safety rules). It is the one remaining gate before the 45-run.
+
+Observed wobble worth knowing: xarray-3993's EMPTY-patch run scored P2P
+2394/2398 (4 flaky dask-era tests at base) while the gold run scored 2398/2398.
+The official harness uses the identical mechanism, so this flakiness is shared
+with final scoring, not introduced by the evaluator.
+
+Side effects kept ON PURPOSE for the run: 7 newly pulled official instance
+images (django/sympy/pytest/pylint/sphinx/sklearn/xarray-3993) plus the bare
+repo caches and validation workspaces under
+`/home/xc/.cache/fvk-workspaces-prep45/` — they make the real 45-run's builds
+fast. Pre-pull the remaining 37 images with
+`run.py prepull-images --config fvk_experiments/configs/batchN__...yaml`
+(per batch) before launching arms.
