@@ -1,0 +1,154 @@
+--- source/astropy_13236_fvk_prompt.md
++++ instantiated/fvk-replicate@astropy__astropy-13236
+@@ -14,7 +14,7 @@
+ - Base commit URL: `https://github.com/astropy/astropy/commit/6ed769d58d89380ebaa1ef52b300691eefda8928`
+ - Astropy version: `5.0`
+ - Difficulty: `15 min - 1 hour`
+-- Formal Verification Kit: `https://github.com/grosu/formal-verification-kit`
++- Formal Verification Kit: `formal-verification-kit/` (staged locally in this workspace)
+ 
+ Known evaluator shape:
+ 
+@@ -46,68 +46,36 @@
+ 
+ ## Workspace Setup
+ 
+-Create a clean workspace:
+-
+-    mkdir -p /home/openclaw/fvk_astropy_13236/{benchmark,private_eval,patches,reports,fvk,scripts}
+-    cd /home/openclaw/fvk_astropy_13236
+-
+-Fetch the exact benchmark row and extract only public fields:
+-
+-    python3 - <<'PY'
+-    import json
+-    import urllib.request
+-
+-    url = "https://datasets-server.huggingface.co/rows?dataset=princeton-nlp%2FSWE-bench_Verified&config=default&split=test&offset=2&length=1"
+-    req = urllib.request.Request(url, headers={"User-Agent": "fvk-experiment"})
+-    data = json.load(urllib.request.urlopen(req, timeout=60))
+-
+-    with open("private_eval/swebench_row_full.json", "w") as f:
+-        json.dump(data, f, indent=2)
+-
+-    row = data["rows"][0]["row"]
+-    assert row["instance_id"] == "astropy__astropy-13236"
+-    assert row["repo"] == "astropy/astropy"
+-    assert row["base_commit"] == "6ed769d58d89380ebaa1ef52b300691eefda8928"
+-
+-    public = {
+-        "repo": row["repo"],
+-        "instance_id": row["instance_id"],
+-        "base_commit": row["base_commit"],
+-        "problem_statement": row["problem_statement"],
+-        "hints_text": row.get("hints_text", ""),
+-        "created_at": row.get("created_at", ""),
+-        "version": row.get("version", ""),
+-        "difficulty": row.get("difficulty", ""),
+-        "environment_setup_commit": row.get("environment_setup_commit", ""),
+-    }
+-
+-    with open("benchmark/public_instance.json", "w") as f:
+-        json.dump(public, f, indent=2)
+-
+-    with open("benchmark/PROMPT.md", "w") as f:
+-        f.write("# SWE-bench Verified instance astropy__astropy-13236\n\n")
+-        for k, v in public.items():
+-            if k != "problem_statement":
+-                f.write(f"- {k}: {v}\n")
+-        f.write("\n## Problem statement\n\n")
+-        f.write(public["problem_statement"])
+-        f.write("\n")
+-
+-    print("Public instance extracted.")
+-    print("Instance:", row["instance_id"])
+-    print("Repo:", row["repo"])
+-    print("Base commit:", row["base_commit"])
+-    print("Aggregate evaluator size: FAIL_TO_PASS=2, PASS_TO_PASS=644")
+-    PY
+-
+-Do not manually open `private_eval/swebench_row_full.json`. It contains private benchmark fields.
+-
+-Clone the repository and check out the base commit:
+-
+-    git clone https://github.com/astropy/astropy.git repo
++Your current working directory is a pre-built workspace staged with:
++
++    benchmark/PROMPT.md                  # public instance fields + problem statement
++    benchmark/public_instance.json       # public fields only
++    scripts/private_eval.py              # aggregate-only private evaluator
++    repo/                                # astropy/astropy checked out at the base commit
++    .venv/                               # ready Python environment with repo/ installed
++    formal-verification-kit/             # local copy of the Formal Verification Kit
++
++Use or create: `patches/`, `reports/`, `fvk/`.
++
++Grading is performed by `scripts/private_eval.py`, which reports only aggregate pass/fail counts; the reference solution and hidden tests are not available in this workspace.
++
++## Phase 0: Verify the Pre-Built Environment
++
++Do not re-clone the repository or rebuild the environment. Verify what is staged:
++
+     cd repo
+-    git checkout 6ed769d58d89380ebaa1ef52b300691eefda8928
++    git rev-parse HEAD
+     cd ..
++    .venv/bin/python -c "import astropy; print(astropy.__version__)"
++    .venv/bin/python -m pytest --version
++
++Confirm that:
++
++- `repo/` is checked out at base commit `6ed769d58d89380ebaa1ef52b300691eefda8928`;
++- `.venv/bin/python` imports `astropy` from the staged environment;
++- the test runner works: run one quick public test already present under `repo/`.
++
++Record what you verified in `reports/setup_notes.md`. If something is broken, repair the environment without changing `repo/` source files, and note what you did.
+ 
+ ## Phase 1: Generate v1 Without FVK
+ 
+@@ -146,9 +114,11 @@
+ 
+ ## Phase 2: Evaluate v1 Privately
+ 
+-Use the official SWE-bench harness if available.
+-
+-If the official harness is not available, write a local private evaluator that:
++Evaluate with the pre-staged private evaluator:
++
++    .venv/bin/python scripts/private_eval.py patches/solution_v1.patch v1
++
++`scripts/private_eval.py` is a local private evaluator that:
+ 
+ 1. creates a fresh checkout of Astropy at the base commit;
+ 2. applies `patches/solution_v1.patch`;
+@@ -174,23 +144,21 @@
+ 
+ ## Phase 3: Apply the Formal Verification Kit
+ 
+-Clone the FVK repository:
+-
+-    git clone https://github.com/grosu/formal-verification-kit.git fvk_repo
++The Formal Verification Kit is staged locally at `formal-verification-kit/`. Do not fetch it from the web.
+ 
+ Read:
+ 
+-- `fvk_repo/README.md`
+-- `fvk_repo/AGENTS.md`
+-- `fvk_repo/commands/formalize.md`
+-- `fvk_repo/commands/verify.md`
++- `formal-verification-kit/README.md`
++- `formal-verification-kit/AGENTS.md`
++- `formal-verification-kit/commands/formalize.md`
++- `formal-verification-kit/commands/verify.md`
+ 
+ If `/formalize` and `/verify` slash commands exist in your environment, use them.
+ 
+ If they do not exist, manually follow the workflows in:
+ 
+-- `fvk_repo/commands/formalize.md`
+-- `fvk_repo/commands/verify.md`
++- `formal-verification-kit/commands/formalize.md`
++- `formal-verification-kit/commands/verify.md`
+ 
+ Allowed FVK inputs:
+ 

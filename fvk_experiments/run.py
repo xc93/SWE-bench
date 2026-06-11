@@ -44,6 +44,13 @@ def cmd_run(args) -> int:
         run_inference(cfg, run_dir, resume=not args.no_resume)
     if "eval" in stages:
         run_eval_with_retries(cfg, run_dir)
+        # Phased agentic arms also harvest a v1 (pre-self-review) patch set:
+        # grade it through the same official harness under "<run_id>-v1" so the
+        # report can show the v1 -> v2 transition with executed verdicts.
+        v1_preds = run_dir / "predictions_v1.jsonl"
+        if v1_preds.exists():
+            run_eval_with_retries(cfg, run_dir, predictions=str(v1_preds),
+                                  run_id=f"{run_id}-v1")
     if "report" in stages:
         out = write_run_report(run_dir)
         from fvk_bench.report import write_results_index
@@ -105,6 +112,101 @@ def cmd_results(args) -> int:
     return 0
 
 
+def cmd_isolation_probe(args) -> int:
+    """Self-check the production launch path: sealed HOME + an out-of-repo
+    throwaway workspace, one real claude session, a trivial prompt asking what
+    project notes / memory / special instructions and non-built-in tools the
+    agent can see. Prints the agent's final text and the tool names in the
+    stream so we can confirm NO experiment notes and NO playwright/vercel/etc.
+    """
+    import shutil
+    import tempfile
+
+    from fvk_bench.agentic import workspaces_root
+    from fvk_bench.agents.claude_code import (build_claude_argv, parse_stream,
+                                              resolve_claude_bin, run_claude_session)
+    from fvk_bench.agents.profile import ensure_sealed_home, sealed_env
+    from fvk_bench.config import (Config, DatasetCfg, EvalCfg, InferenceCfg,
+                                  ModelCfg, PromptCfg)
+
+    claude_bin = args.claude_bin or resolve_claude_bin()
+    cc_model = args.model
+
+    # EXACT production sealed launch: sealed HOME (no user CLAUDE.md/memory/
+    # plugins) + the same argv builder used by real arms.
+    sealed = ensure_sealed_home()
+    env = sealed_env(sealed)
+    cfg = Config(
+        run_name="isolation-probe",
+        dataset=DatasetCfg(instance_ids=["probe"]),
+        model=ModelCfg(provider="claude-code", name="claude-code-probe",
+                       cc_model=cc_model, max_turns=4, session_timeout_s=args.timeout),
+        inference=InferenceCfg(), eval=EvalCfg(), prompt=PromptCfg(),
+    )
+    argv = build_claude_argv(claude_bin, cfg)
+
+    # Throwaway workspace OUTSIDE the repo (under workspaces_root), so no
+    # repo-ancestor CLAUDE.md is discoverable from the session cwd.
+    ws_root = workspaces_root() / "_isolation_probe"
+    ws_root.mkdir(parents=True, exist_ok=True)
+    ws = Path(tempfile.mkdtemp(prefix="probe-", dir=ws_root))
+    stream_path = ws / "stream.jsonl"
+    prompt = (
+        "This is an isolation self-check. Do not edit files. Briefly answer two "
+        "things: (1) list any project notes, memory, or special instructions you "
+        "can see (CLAUDE.md, project memory, anything describing a task or "
+        "experiment) — if none, say 'NONE'; (2) list the names of any non-built-in "
+        "tools available to you (plugins, MCP servers); if only the standard "
+        "built-in tools are available, say 'only built-in tools'.")
+
+    print(f"sealed HOME: {sealed}\nsealed env: HOME={env['HOME']} "
+          f"CLAUDE_CONFIG_DIR={env.get('CLAUDE_CONFIG_DIR')}")
+    print(f"argv: {' '.join(argv)}")
+    print(f"cwd (throwaway, out-of-repo): {ws}\n--- running one session ---", flush=True)
+    res = run_claude_session(argv, prompt, cwd=ws, timeout_s=args.timeout,
+                             stream_path=stream_path, env=env)
+    events = parse_stream(stream_path)
+
+    # Final assistant text + every tool name seen in the stream.
+    final_text, tool_names = "", []
+    for ev in events:
+        if ev.get("type") == "assistant":
+            for block in (ev.get("message") or {}).get("content") or []:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text" and (block.get("text") or "").strip():
+                    final_text = block["text"]
+                elif block.get("type") == "tool_use" and block.get("name"):
+                    if block["name"] not in tool_names:
+                        tool_names.append(block["name"])
+    # The session's advertised toolset (system init event), if present.
+    init_tools = []
+    for ev in events:
+        if ev.get("type") == "system" and ev.get("tools"):
+            init_tools = ev["tools"]
+            break
+
+    authed = bool(events) and any(e.get("type") == "assistant" for e in events)
+    BAD = ("playwright", "vercel", "telegram", "superpowers", "chrome-devtools")
+    advertised = init_tools or tool_names
+    leaked = sorted({t for t in advertised
+                     for b in BAD if b in str(t).lower()})
+
+    print("\n=== ISOLATION PROBE RESULT ===")
+    print(f"(a) authenticated: {'YES' if authed else 'NO'} "
+          f"(rc={res['returncode']}, timed_out={res['timed_out']})")
+    if not authed:
+        print(f"    stderr tail: {res['stderr_tail'][-500:]!r}")
+    print(f"(b) agent final text:\n{final_text or '(none)'}")
+    print(f"(c) tools advertised (system init): {init_tools or '(none in stream)'}")
+    print(f"    tools actually used: {tool_names or '(none)'}")
+    print(f"    leaked plugin/MCP tools (MUST be empty): {leaked or 'NONE ✅'}")
+    print(f"\nstream: {stream_path}")
+    if not args.keep:
+        shutil.rmtree(ws, ignore_errors=True)
+    return 0
+
+
 def cmd_build_demos(args) -> int:
     from fvk_bench.demos import build_content
 
@@ -152,6 +254,18 @@ def main() -> int:
 
     ps = sub.add_parser("results", help="regenerate RESULTS.md from run artifacts")
     ps.set_defaults(fn=cmd_results)
+
+    pi = sub.add_parser("isolation-probe",
+                        help="self-check the sealed launch path: one claude session "
+                             "in a sealed HOME + out-of-repo workspace; prints what "
+                             "project notes / tools the agent can see")
+    pi.add_argument("--model", default="claude-opus-4-6",
+                    help="claude --model value (default: claude-opus-4-6)")
+    pi.add_argument("--claude-bin", default=None, help="override the claude binary")
+    pi.add_argument("--timeout", type=int, default=180, help="session timeout (s)")
+    pi.add_argument("--keep", action="store_true",
+                    help="keep the throwaway workspace dir")
+    pi.set_defaults(fn=cmd_isolation_probe)
 
     pd = sub.add_parser("build-demos",
                         help="freeze demo content JSON from a demos registry YAML")

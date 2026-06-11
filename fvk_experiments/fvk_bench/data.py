@@ -39,6 +39,31 @@ def load_oracle_texts(cfg: Config) -> dict[str, str]:
     return texts
 
 
+def load_full_rows(cfg: Config) -> dict[str, dict]:
+    """instance_id -> FULL dataset row (all fields), for exactly the configured
+    instances. Used by agentic arms, which stage rows into workspaces instead of
+    composing oracle prompts."""
+    from datasets import load_dataset
+
+    want = set(cfg.dataset.instance_ids)
+    ds = load_dataset(cfg.dataset.name, split=cfg.dataset.split)
+    rows: dict[str, dict] = {}
+    for offset, row in enumerate(ds):
+        iid = row["instance_id"]
+        if iid in want:
+            # _hf_offset: the row's index in the split (staged into the public
+            # instance file, mirroring the reference public_instance.json).
+            rows[iid] = {**row, "_hf_offset": offset}
+            if len(rows) == len(want):
+                break
+    missing = want - rows.keys()
+    if missing:
+        raise ValueError(
+            f"{len(missing)} configured instances missing from "
+            f"{cfg.dataset.name}:{cfg.dataset.split}: {sorted(missing)}")
+    return rows
+
+
 def verify_instances_in_dataset(cfg: Config) -> None:
     """Hard-fail early if a pinned id is not in the evaluation dataset."""
     from datasets import load_dataset

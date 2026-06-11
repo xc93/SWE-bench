@@ -167,6 +167,15 @@ cython_debug/
 *.jsonl.*
 # fvk_experiments test fixtures are committed even when .jsonl
 !fvk_experiments/tests/fixtures/*.jsonl
+# agentic (claude-code) per-instance workspaces now DEFAULT to ~/.cache/fvk-workspaces
+# (out of the repo, so no ancestor CLAUDE.md leaks into a session cwd); this stale
+# in-repo path is kept ignored for older runs. Sealed agent HOME and workspaces both
+# live under ~/.cache and are never in the tree. Provenance lives in runs/.
+fvk_experiments/workspaces/
+# The out-of-workspace answer key (full benchmark row incl. patch/test_patch/F2P/P2P)
+# is written under runs/<id>/private/ — runs/ is otherwise committed for provenance,
+# but the answer key must NEVER be committed.
+fvk_experiments/runs/*/private/
 *.patch
 *.DS_Store
 data/repos/copies

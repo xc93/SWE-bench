@@ -1,0 +1,47 @@
+# Arm @ claude-code — FVK-REPLICATE: headless Claude Code agent sessions (`claude -p`
+# in a per-instance workspace, WebSearch/WebFetch denied) running the 5-phase protocol:
+# v1 patch → in-session aggregate self-eval (scripts/private_eval.py) → findings →
+# v2 patch → final self-eval + report. The workspace stages a copy of the
+# formal-verification-kit working tree; prompt.system_prompt is this arm's session
+# TEMPLATE (instantiated per instance — it is what the arm injects). Pair only against
+# the other claude-code arms (baseline, review-control): same model, same harness.
+# Rerun:
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__claude-code-opus46__fvk-replicate.yaml
+run_name: astropy10__claude-code-opus-4.6__fvk-replicate
+tag: fvk-replicate
+
+dataset:
+  name: princeton-nlp/SWE-bench_Verified
+  split: test
+  oracle_text_dataset: princeton-nlp/SWE-bench_oracle
+  # First 10 astropy instances of SWE-bench_Verified:test in HF row order.
+  # Pinned 2026-06-10 via: run.py pin-instances --repo astropy --n 10
+  instance_ids:
+    - astropy__astropy-12907
+    - astropy__astropy-13033
+    - astropy__astropy-13236
+    - astropy__astropy-13398
+    - astropy__astropy-13453
+    - astropy__astropy-13579
+    - astropy__astropy-13977
+    - astropy__astropy-14096
+    - astropy__astropy-14182
+    - astropy__astropy-14309
+
+model:
+  provider: claude-code       # headless multi-turn `claude -p` sessions (CLI login, no API key here)
+  name: claude-code-opus-4.6  # must match the other claude-code arms for a valid pair
+  cc_model: claude-opus-4-6   # the `claude --model` value
+  max_turns: 200              # per-session agentic turn cap (claude --max-turns)
+  session_timeout_s: 5400     # 90 min wall-clock kill switch per session
+
+inference:
+  max_workers: 3              # concurrent agent sessions (heavyweight local processes)
+
+eval:
+  max_workers: 4
+  timeout_s: 1800
+
+prompt:
+  style: oracle
+  system_prompt: prompts/agentic/fvk-replicate.md   # session template (frozen once run)

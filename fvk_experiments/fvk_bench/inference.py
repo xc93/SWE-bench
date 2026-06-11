@@ -171,6 +171,12 @@ def _run_one(client, codex_bin: str | None, cfg: Config, iid: str, oracle_text: 
 
 def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
     """Run all configured instances; write raw/, prompts/, predictions.jsonl, meta.json."""
+    if cfg.model.provider == "claude-code":
+        # Agentic sessions are a different inference shape (workspaces, multi-turn,
+        # phased patches) — dispatch to the dedicated runner.
+        from .agents.claude_code import run_agentic_inference
+        return run_agentic_inference(cfg, run_dir, resume=resume)
+
     client = codex_bin = api_key = None
     if cfg.model.provider == "codex-cli":
         codex_bin = resolve_codex_bin()  # subscription auth via `codex login`, no API key

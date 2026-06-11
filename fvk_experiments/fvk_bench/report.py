@@ -66,6 +66,8 @@ def collect_run_summary(run_dir: Path) -> dict:
             "inference_error": raw.get("error"),
             "patch_applied": irep.get("patch_successfully_applied"),
             "resolved": iid in resolved,
+            "contaminated": bool(raw.get("contaminated")),
+            "contamination_evidence": raw.get("contamination_evidence") or [],
             "prompt_tokens": usage.get("prompt_tokens"),
             "completion_tokens": usage.get("completion_tokens"),
             "wall_s": raw.get("wall_s"),
@@ -87,6 +89,8 @@ def collect_run_summary(run_dir: Path) -> dict:
         "n_instances": len(ids),
         "solved_count": len(resolved & set(ids)),
         "resolved_ids": sorted(resolved & set(ids)),
+        "contaminated_ids": sorted(i["instance_id"] for i in instances
+                                   if i["contaminated"]),
         "empty_patch_ids": harness.get("empty_patch_ids", []),
         "error_ids": harness.get("error_ids", []),
         "harness_report": str(harness_path),
@@ -95,6 +99,120 @@ def collect_run_summary(run_dir: Path) -> dict:
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     return summary
+
+
+# ---- agentic (claude-code) extras: v1->v2 transitions + claimed-vs-official ----
+
+# Tolerant of both shapes in the wild: the evaluator's "FAIL_TO_PASS 2/2" and
+# the protocol reports' "FAIL_TO_PASS: 2 / 2" / "Resolved: true".
+_CLAIM_F2P = re.compile(r"FAIL_TO_PASS:?\s*(\d+)\s*/\s*(\d+)")
+_CLAIM_P2P = re.compile(r"PASS_TO_PASS:?\s*(\d+)\s*/\s*(\d+)")
+_CLAIM_RES = re.compile(r"resolved:\s*\**\s*(true|false)", re.I)
+
+
+def parse_claimed_aggregates(text: str) -> dict | None:
+    """LAST private-evaluator-shaped aggregate claim in `text` (the final
+    self-eval is what the agent reports), or None."""
+    f2p = _CLAIM_F2P.findall(text)
+    p2p = _CLAIM_P2P.findall(text)
+    res = _CLAIM_RES.findall(text)
+    if not (f2p or res):
+        return None
+    return {
+        "FAIL_TO_PASS": "/".join(f2p[-1]) if f2p else None,
+        "PASS_TO_PASS": "/".join(p2p[-1]) if p2p else None,
+        "resolved": res[-1].lower() == "true" if res else None,
+    }
+
+
+def claimed_for_instance(artifacts_dir: Path) -> dict | None:
+    """In-session claimed aggregates from a harvested artifacts/<iid>/reports/."""
+    reports = artifacts_dir / "reports"
+    if not reports.is_dir():
+        return None
+    texts = []
+    for f in sorted(reports.rglob("*")):
+        if f.is_file() and f.suffix.lower() in (".md", ".txt", ".json", ""):
+            try:
+                texts.append(f.read_text(errors="replace"))
+            except OSError:
+                continue
+    return parse_claimed_aggregates("\n".join(texts)) if texts else None
+
+
+def render_transition_table(ids: list[str], v1_resolved: set[str],
+                            v2_resolved: set[str],
+                            claimed_by_iid: dict[str, dict | None]) -> str:
+    """Markdown: per-instance v1->v2 official verdicts + claimed cross-check."""
+    def _rx(resolved: bool) -> str:
+        return "R" if resolved else "X"
+
+    rows = []
+    counts = {"R→R": 0, "R→X": 0, "X→R": 0, "X→X": 0}
+    for iid in ids:
+        v1, v2 = iid in v1_resolved, iid in v2_resolved
+        trans = f"{_rx(v1)}→{_rx(v2)}"
+        counts[trans] += 1
+        marker = {"X→R": " 📈", "R→X": " 📉"}.get(trans, "")
+        claim = claimed_by_iid.get(iid)
+        if claim is None:
+            claim_cell, check = "—", "—"
+        else:
+            claim_cell = (f"F2P {claim['FAIL_TO_PASS'] or '?'} · "
+                          f"P2P {claim['PASS_TO_PASS'] or '?'} · "
+                          f"resolved {claim['resolved']}")
+            check = ("—" if claim["resolved"] is None
+                     else ("✅ match" if claim["resolved"] == v2 else "❌ MISMATCH"))
+        rows.append(f"| {iid} | {_mark(v1)} | {_mark(v2)} | {trans}{marker} "
+                    f"| {claim_cell} | {check} |")
+    header = ("| instance_id | v1 resolved (official) | v2 resolved (official) "
+              "| v1→v2 | claimed (in-session) | claimed = official |\n"
+              "|---|---|---|---|---|---|")
+    summary = (f"Transitions: R→R {counts['R→R']} · R→X {counts['R→X']} · "
+               f"X→R {counts['X→R']} · X→X {counts['X→X']}")
+    return header + "\n" + "\n".join(rows) + "\n\n" + summary
+
+
+def _agentic_section(run_dir: Path, s: dict) -> str:
+    """v1->v2 section for phased agentic runs; '' when the run has no v1 pass."""
+    label = s["model_label"].replace("/", "__")
+    v1_report = run_dir / "eval" / f"{label}.{s['run_id']}-v1.json"
+    if not v1_report.exists():
+        return ""
+    try:
+        v1 = json.loads(v1_report.read_text())
+    except (OSError, json.JSONDecodeError):
+        return ""
+    ids = [i["instance_id"] for i in s["instances"]]
+    v1_resolved = set(v1.get("resolved_ids", [])) & set(ids)
+    v2_resolved = set(s["resolved_ids"])
+    claimed = {iid: claimed_for_instance(run_dir / "artifacts" / iid) for iid in ids}
+    table = render_transition_table(ids, v1_resolved, v2_resolved, claimed)
+    return (f"\n## Agentic phases: v1 → v2 (official harness verdicts)\n\n"
+            f"v1 = the pre-self-review patch (`predictions_v1.jsonl`, harness run "
+            f"`{s['run_id']}-v1`); v2 = the final submission. \"claimed\" is what the "
+            f"session's own report asserted (parsed from `artifacts/<iid>/reports/`).\n\n"
+            f"**v1 solved {len(v1_resolved)} / {len(ids)}** → "
+            f"**v2 solved {s['solved_count']} / {len(ids)}**\n\n"
+            f"{table}\n")
+
+
+def _contamination_banner(s: dict) -> str:
+    """Prominent invalidation notice for runs with contaminated instances.
+
+    A contaminated instance read the out-of-workspace answer key (or leaked a
+    hidden FAIL_TO_PASS name before its eval): its prediction was emptied, so it
+    is scored unsolved regardless of what patch it produced."""
+    cids = s.get("contaminated_ids") or []
+    if not cids:
+        return ""
+    by_id = {i["instance_id"]: i for i in s["instances"]}
+    lines = [f"\n> ⚠️ **{len(cids)} INVALIDATED for contamination** — prediction emptied, "
+             f"scored unsolved. Evidence in `audit/<iid>.json`."]
+    for iid in cids:
+        ev = "; ".join(by_id.get(iid, {}).get("contamination_evidence") or []) or "see audit"
+        lines.append(f"> - `{iid}` — {ev[:300]}")
+    return "\n".join(lines) + "\n"
 
 
 def write_run_report(run_dir: Path) -> Path:
@@ -109,7 +227,8 @@ def write_run_report(run_dir: Path) -> Path:
         demos_line = (f"- **Demos**: `{s['demos_registry']}` (registry sha `{(s['demos_registry_sha256'] or '')[:12]}…`, "
                       f"content sha `{(s['demos_content_sha256'] or '')[:12]}…`)\n")
     rows = "\n".join(
-        f"| {i['instance_id']} | {_mark(i['patch_extracted'])} | {_mark(i['patch_applied'])} "
+        f"| {i['instance_id']}{' ⚠️ CONTAMINATED' if i['contaminated'] else ''} "
+        f"| {_mark(i['patch_extracted'])} | {_mark(i['patch_applied'])} "
         f"| {_mark(i['resolved'])} | {i['n_samples']} | {i['prompt_tokens'] or '—'} "
         f"| {i['completion_tokens'] or '—'} | {i['wall_s'] or '—'} "
         f"| {i['inference_error'] or ''} |"
@@ -124,13 +243,13 @@ Generated: {s['generated_at']}
 {prompt_line}{demos_line}- **Dataset**: `{s['dataset']}` ({s['n_instances']} pinned instances)
 
 ## Result: **{s['solved_count']} / {s['n_instances']} solved**
-
+{_contamination_banner(s)}
 | instance_id | patch extracted | patch applied | resolved | samples | in tok | out tok | wall s | inference error |
 |---|---|---|---|---|---|---|---|---|
 {rows}
 
 Resolved: {', '.join(f'`{i}`' for i in s['resolved_ids']) or '(none)'}
-
+{_agentic_section(run_dir, s)}
 ## Provenance
 
 - Config snapshot: `config.snapshot.yaml` · meta: `meta.json` · machine-readable: `summary.json`

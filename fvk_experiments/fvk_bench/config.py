@@ -54,9 +54,12 @@ class DatasetCfg:
 @dataclass
 class ModelCfg:
     name: str = "deepseek-v4-flash"
-    # "deepseek" (OpenAI-compatible API, needs api_key_env) or "codex-cli" (one-shot
+    # "deepseek" (OpenAI-compatible API, needs api_key_env), "codex-cli" (one-shot
     # `codex exec` under a ChatGPT subscription — no API key; `thinking`/`max_tokens`
-    # are ignored, the Codex harness controls both).
+    # are ignored, the Codex harness controls both), or "claude-code" (headless
+    # multi-turn `claude -p` agent sessions in a per-instance workspace; auth via the
+    # local claude CLI login; `thinking`/`max_tokens` are likewise ignored — the
+    # Claude Code harness controls both).
     provider: str = "deepseek"
     base_url: str = "https://api.deepseek.com"
     api_key_env: str = "DEEPSEEK_API_KEY"
@@ -66,6 +69,12 @@ class ModelCfg:
     temperature: float | None = None
     # `codex exec -m` value (e.g. gpt-5.5); required for codex-cli, rejected otherwise.
     codex_model: str | None = None
+    # `claude --model` value (e.g. claude-opus-4-6); required for claude-code,
+    # rejected otherwise.
+    cc_model: str | None = None
+    # claude-code only (ignored by other providers): hard caps for one agent session.
+    max_turns: int = 200
+    session_timeout_s: int = 5400
 
 
 @dataclass
@@ -174,6 +183,9 @@ class Config:
         if self.model.provider == "codex-cli":
             effort = f"-{self.model.reasoning_effort}" if self.model.reasoning_effort else ""
             return f"{self.model.name}{effort}__{self.arm_tag()}"
+        if self.model.provider == "claude-code":
+            # No -think suffix: thinking is not a knob we control for Claude Code.
+            return f"{self.model.name}__{self.arm_tag()}"
         think = "think" if self.model.thinking else "nothink"
         return f"{self.model.name}-{think}__{self.arm_tag()}"
 
@@ -212,14 +224,26 @@ def validate(cfg: Config) -> None:
         raise ValueError("run_name must be filesystem/docker safe: [A-Za-z0-9._-]+")
     if not cfg.dataset.instance_ids:
         raise ValueError("dataset.instance_ids must be a non-empty pinned list")
-    if cfg.model.provider not in ("deepseek", "codex-cli"):
+    if cfg.model.provider not in ("deepseek", "codex-cli", "claude-code"):
         raise ValueError(
-            f"model.provider must be 'deepseek' or 'codex-cli', got {cfg.model.provider!r}")
+            "model.provider must be 'deepseek', 'codex-cli' or 'claude-code', "
+            f"got {cfg.model.provider!r}")
     if cfg.model.provider == "codex-cli" and not cfg.model.codex_model:
         raise ValueError(
             "provider 'codex-cli' requires model.codex_model (the `codex exec -m` value)")
     if cfg.model.provider != "codex-cli" and cfg.model.codex_model:
         raise ValueError("model.codex_model is only valid with provider 'codex-cli'")
+    if cfg.model.provider == "claude-code":
+        if not cfg.model.cc_model:
+            raise ValueError(
+                "provider 'claude-code' requires model.cc_model (the `claude --model` value)")
+        # For claude-code, prompt.system_prompt is the arm's agentic TEMPLATE file —
+        # it is what the arm injects (the per-instance session prompt is instantiated
+        # from it); the arm label still resolves via the usual tag: precedence.
+        if cfg.model.max_turns <= 0 or cfg.model.session_timeout_s <= 0:
+            raise ValueError("max_turns and session_timeout_s must be positive")
+    elif cfg.model.cc_model:
+        raise ValueError("model.cc_model is only valid with provider 'claude-code'")
     if cfg.prompt.style != "oracle":
         raise ValueError(f"only prompt.style 'oracle' is supported, got {cfg.prompt.style!r}")
     if cfg.prompt.system_prompt and not cfg.system_prompt_path().exists():

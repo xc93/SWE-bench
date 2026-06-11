@@ -12,8 +12,12 @@ from pathlib import Path
 from .config import Config, REPO_ROOT
 
 
-def harness_report_path(run_dir: Path, model_label: str) -> Path:
-    return run_dir / "eval" / f"{model_label.replace('/', '__')}.{run_dir.name}.json"
+def harness_report_path(run_dir: Path, model_label: str,
+                        run_id: str | None = None) -> Path:
+    # The harness names its report <label>.<run_id>.json — run_id only differs
+    # from the run dir name for auxiliary passes (e.g. the phased arms' "-v1").
+    run_id = run_id or run_dir.name
+    return run_dir / "eval" / f"{model_label.replace('/', '__')}.{run_id}.json"
 
 
 def run_eval(cfg: Config, run_dir: Path, predictions: str | None = None,
@@ -41,7 +45,7 @@ def run_eval(cfg: Config, run_dir: Path, predictions: str | None = None,
     print(f"$ {' '.join(cmd)}", flush=True)
     subprocess.run(cmd, cwd=REPO_ROOT, check=True)
     label = "gold" if preds == "gold" else cfg.model_label()
-    report = harness_report_path(run_dir, label)
+    report = harness_report_path(run_dir, label, run_id)
     # The harness creates --report_dir but (as of this repo version) writes the
     # report into CWD; relocate it. The CWD copy is always the freshest, so it
     # overwrites any report from a previous eval of this run.
