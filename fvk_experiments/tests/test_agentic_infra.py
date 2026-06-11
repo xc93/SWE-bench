@@ -472,7 +472,7 @@ def test_claude_argv_exact_flags(tmp_path):
         "--output-format", "stream-json",
         "--verbose",
         "--max-turns", "200",
-        "--disallowedTools", "WebSearch,WebFetch",
+        "--disallowedTools", "WebSearch,WebFetch,Skill",
         "--permission-mode", "bypassPermissions",
     ]
 

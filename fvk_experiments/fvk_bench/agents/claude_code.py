@@ -32,7 +32,12 @@ from ..config import Config
 from ..extract import normalize_patch
 from .profile import ensure_sealed_home, sealed_env
 
-DISALLOWED_TOOLS = "WebSearch,WebFetch"  # network reach is part of the leak surface
+# WebSearch/WebFetch: network reach is part of the leak surface.
+# Skill: the CLI bundles review-flavored skills (code-review, simplify, verify, debug)
+# that overlap with the treatment being measured; deny the Skill tool so no arm can
+# invoke them. FVK is delivered to the replicate arm as workspace files, not a skill,
+# so nothing of experimental value is lost.
+DISALLOWED_TOOLS = "WebSearch,WebFetch,Skill"
 
 # Session statuses recorded per instance (all terminal):
 #   ok        — clean exit, result event present
