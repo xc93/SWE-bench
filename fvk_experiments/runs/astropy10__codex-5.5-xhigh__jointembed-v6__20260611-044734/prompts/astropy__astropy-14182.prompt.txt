@@ -1,0 +1,689 @@
+<experiment_instructions>
+# Demonstration-Guided Repair Directive (v6 — jointembed)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue.
+
+Below this directive you will find several **solved examples**: real issues from the same codebase that are semantically similar to the task, each paired with the exact patch that fixed it. Use them the way a retrieval system intends:
+
+- **Study each example's issue → patch mapping first**: which subsystem it touches, where the root cause sat relative to the symptom, how small the fix is, how the maintainers shaped it (guard clause vs. parameter propagation vs. dtype/rounding handling vs. serialization fix), and what the patch deliberately did *not* touch.
+- **Transfer patterns, not text.** The examples are different problems: never copy their patches, their line numbers, or their file choices blindly. What transfers is the diagnostic approach and the fix *shape*.
+- Note conventions the examples reveal about this codebase: API style, error-handling habits, how public behavior is preserved, typical patch size.
+- Then solve the new issue: locate the root cause in the provided files, apply the most fitting pattern, and keep the fix as focused as the example patches are.
+
+Constraints:
+
+- The examples are background material. **Your final answer must contain only your own patch for the new issue** — never reproduce or quote the example patches in it.
+- **Output format:** the task instructions in the user message govern the final answer's formatting — the patch format, any wrappers, and all output constraints. They take precedence over anything here.
+
+
+# Solved examples from the same codebase
+
+The following are real, already-fixed issues semantically similar to the task you will receive, each with the exact patch that fixed it. Study how each issue maps to its patch before solving the new issue.
+
+## Example 1 — astropy__astropy-13734
+
+### Issue
+
+Add option to input/output column units for fixed width tables
+Extend the `io.ascii.FixedWidth` reader to include a keyword arg that will specify that there is a row of unit specifiers after the column name specifiers (or at the top of the header if there are no column names).  This will apply for both reading and writing fixed width tables.
+
+This allows for outputting a table to a file in a format like `Table.pprint` with `show_units=True`, and then reading back that table with no information loss.
+
+### Patch that fixed it
+
+diff --git a/astropy/io/ascii/fixedwidth.py b/astropy/io/ascii/fixedwidth.py
+--- a/astropy/io/ascii/fixedwidth.py
++++ b/astropy/io/ascii/fixedwidth.py
+@@ -92,6 +92,7 @@ def get_cols(self, lines):
+             List of table lines
+ 
+         """
++        header_rows = getattr(self, "header_rows", ["name"])
+ 
+         # See "else" clause below for explanation of start_line and position_line
+         start_line = core._get_line_index(self.start_line, self.process_lines(lines))
+@@ -149,14 +150,20 @@ def get_cols(self, lines):
+                 vals, self.col_starts, col_ends = self.get_fixedwidth_params(line)
+                 self.col_ends = [x - 1 if x is not None else None for x in col_ends]
+ 
+-            # Get the header column names and column positions
+-            line = self.get_line(lines, start_line)
+-            vals, starts, ends = self.get_fixedwidth_params(line)
+-
+-            self.names = vals
++            # Get the column names from the header line
++            line = self.get_line(lines, start_line + header_rows.index("name"))
++            self.names, starts, ends = self.get_fixedwidth_params(line)
+ 
+         self._set_cols_from_names()
+ 
++        for ii, attr in enumerate(header_rows):
++            if attr != "name":
++                line = self.get_line(lines, start_line + ii)
++                vals = self.get_fixedwidth_params(line)[0]
++                for col, val in zip(self.cols, vals):
++                    if val:
++                        setattr(col, attr, val)
++
+         # Set column start and end positions.
+         for i, col in enumerate(self.cols):
+             col.start = starts[i]
+@@ -237,29 +244,44 @@ class FixedWidthData(basic.BasicData):
+     """
+     splitter_class = FixedWidthSplitter
+     """ Splitter class for splitting data lines into columns """
++    start_line = None
+ 
+     def write(self, lines):
++        default_header_rows = [] if self.header.start_line is None else ['name']
++        header_rows = getattr(self, "header_rows", default_header_rows)
++        # First part is getting the widths of each column.
++        # List (rows) of list (column values) for data lines
+         vals_list = []
+         col_str_iters = self.str_vals()
+         for vals in zip(*col_str_iters):
+             vals_list.append(vals)
+ 
+-        for i, col in enumerate(self.cols):
+-            col.width = max(len(vals[i]) for vals in vals_list)
+-            if self.header.start_line is not None:
+-                col.width = max(col.width, len(col.info.name))
+-
+-        widths = [col.width for col in self.cols]
+-
+-        if self.header.start_line is not None:
+-            lines.append(self.splitter.join([col.info.name for col in self.cols],
+-                                            widths))
++        # List (rows) of list (columns values) for header lines.
++        hdrs_list = []
++        for col_attr in header_rows:
++            vals = [
++                "" if (val := getattr(col.info, col_attr)) is None else str(val)
++                for col in self.cols
++            ]
++            hdrs_list.append(vals)
++
++        # Widths for data columns
++        widths = [max(len(vals[i_col]) for vals in vals_list)
++                  for i_col in range(len(self.cols))]
++        # Incorporate widths for header columns (if there are any)
++        if hdrs_list:
++            for i_col in range(len(self.cols)):
++                widths[i_col] = max(
++                    widths[i_col],
++                    max(len(vals[i_col]) for vals in hdrs_list)
++                )
++
++        # Now collect formatted header and data lines into the output lines
++        for vals in hdrs_list:
++            lines.append(self.splitter.join(vals, widths))
+ 
+         if self.header.position_line is not None:
+-            char = self.header.position_char
+-            if len(char) != 1:
+-                raise ValueError(f'Position_char="{char}" must be a single character')
+-            vals = [char * col.width for col in self.cols]
++            vals = [self.header.position_char * width for width in widths]
+             lines.append(self.splitter.join(vals, widths))
+ 
+         for vals in vals_list:
+@@ -300,12 +322,25 @@ class FixedWidth(basic.Basic):
+     header_class = FixedWidthHeader
+     data_class = FixedWidthData
+ 
+-    def __init__(self, col_starts=None, col_ends=None, delimiter_pad=' ', bookend=True):
++    def __init__(
++        self,
++        col_starts=None,
++        col_ends=None,
++        delimiter_pad=' ',
++        bookend=True,
++        header_rows=None
++    ):
++        if header_rows is None:
++            header_rows = ["name"]
+         super().__init__()
+         self.data.splitter.delimiter_pad = delimiter_pad
+         self.data.splitter.bookend = bookend
+         self.header.col_starts = col_starts
+         self.header.col_ends = col_ends
++        self.header.header_rows = header_rows
++        self.data.header_rows = header_rows
++        if self.data.start_line is None:
++            self.data.start_line = len(header_rows)
+ 
+ 
+ class FixedWidthNoHeaderHeader(FixedWidthHeader):
+@@ -352,7 +387,7 @@ class FixedWidthNoHeader(FixedWidth):
+ 
+     def __init__(self, col_starts=None, col_ends=None, delimiter_pad=' ', bookend=True):
+         super().__init__(col_starts, col_ends, delimiter_pad=delimiter_pad,
+-                         bookend=bookend)
++                         bookend=bookend, header_rows=[])
+ 
+ 
+ class FixedWidthTwoLineHeader(FixedWidthHeader):
+@@ -407,8 +442,22 @@ class FixedWidthTwoLine(FixedWidth):
+     data_class = FixedWidthTwoLineData
+     header_class = FixedWidthTwoLineHeader
+ 
+-    def __init__(self, position_line=1, position_char='-', delimiter_pad=None, bookend=False):
+-        super().__init__(delimiter_pad=delimiter_pad, bookend=bookend)
++    def __init__(
++        self,
++        position_line=None,
++        position_char='-',
++        delimiter_pad=None,
++        bookend=False,
++        header_rows=None
++    ):
++        if len(position_char) != 1:
++            raise ValueError(
++                f'Position_char="{position_char}" must be a ''single character'
++            )
++        super().__init__(delimiter_pad=delimiter_pad, bookend=bookend,
++                         header_rows=header_rows)
++        if position_line is None:
++            position_line = len(self.header.header_rows)
+         self.header.position_line = position_line
+         self.header.position_char = position_char
+         self.data.start_line = position_line + 1
+
+## Example 2 — astropy__astropy-14701
+
+### Issue
+
+Register ``latex`` to ``Cosmology.write``
+Cosmology can now read and write to files.
+It would be nice to register with ``Cosmology.write`` a  method for exporting a Cosmology to a Latex table.
+There are good examples of IO with Cosmology at https://github.com/astropy/astropy/tree/main/astropy/cosmology/io
+and documentation at https://docs.astropy.org/en/latest/cosmology/io.html#cosmology-io
+
+I'm thinking the ``write_latex(...)`` method would call ``cosmology.io.table.to_table()``, format the table to e.g. make `H0` -> `$H_0 \rm{[Mpc]}$` or something and then call the `QTable.write(..., format='latex')`.
+
+### Patch that fixed it
+
+diff --git a/astropy/cosmology/io/__init__.py b/astropy/cosmology/io/__init__.py
+--- a/astropy/cosmology/io/__init__.py
++++ b/astropy/cosmology/io/__init__.py
+@@ -5,4 +5,4 @@
+ """
+ 
+ # Import to register with the I/O machinery
+-from . import cosmology, ecsv, html, mapping, model, row, table, yaml
++from . import cosmology, ecsv, html, mapping, model, row, table, yaml, latex
+diff --git a/astropy/cosmology/io/latex.py b/astropy/cosmology/io/latex.py
+new file mode 100644
+--- /dev/null
++++ b/astropy/cosmology/io/latex.py
+@@ -0,0 +1,79 @@
++import astropy.units as u
++from astropy.cosmology.connect import readwrite_registry
++from astropy.cosmology.core import Cosmology
++from astropy.cosmology.parameter import Parameter
++from astropy.table import QTable
++
++
++from .table import to_table
++
++_FORMAT_TABLE = {
++    "H0": "$$H_0$$",
++    "Om0": "$$\\Omega_{m,0}$$",
++    "Ode0": "$$\\Omega_{\\Lambda,0}$$",
++    "Tcmb0": "$$T_{0}$$",
++    "Neff": "$$N_{eff}$$",
++    "m_nu": "$$m_{nu}$$",
++    "Ob0": "$$\\Omega_{b,0}$$",
++    "w0": "$$w_{0}$$",
++    "wa": "$$w_{a}$$",
++    "wz": "$$w_{z}$$",
++    "wp": "$$w_{p}$$",
++    "zp": "$$z_{p}$$",
++}
++
++
++def write_latex(
++    cosmology, file, *, overwrite=False, cls=QTable, latex_names=True, **kwargs
++):
++    r"""Serialize the |Cosmology| into a LaTeX.
++
++    Parameters
++    ----------
++    cosmology : `~astropy.cosmology.Cosmology` subclass instance
++    file : path-like or file-like
++        Location to save the serialized cosmology.
++
++    overwrite : bool
++        Whether to overwrite the file, if it exists.
++    cls : type, optional keyword-only
++        Astropy :class:`~astropy.table.Table` (sub)class to use when writing.
++        Default is :class:`~astropy.table.QTable`.
++    latex_names : bool, optional keyword-only
++        Whether to use LaTeX names for the parameters. Default is `True`.
++    **kwargs
++        Passed to ``cls.write``
++
++    Raises
++    ------
++    TypeError
++        If kwarg (optional) 'cls' is not a subclass of `astropy.table.Table`
++    """
++    # Check that the format is 'latex' (or not specified)
++    format = kwargs.pop("format", "latex")
++    if format != "latex":
++        raise ValueError(f"format must be 'latex', not {format}")
++
++    # Set cosmology_in_meta as false for now since there is no metadata being kept
++    table = to_table(cosmology, cls=cls, cosmology_in_meta=False)
++
++    cosmo_cls = type(cosmology)
++    for name, col in table.columns.copy().items():
++        param = getattr(cosmo_cls, name, None)
++        if not isinstance(param, Parameter) or param.unit in (None, u.one):
++            continue
++        # Get column to correct unit
++        table[name] <<= param.unit
++
++    # Convert parameter names to LaTeX format
++    if latex_names:
++        new_names = [_FORMAT_TABLE.get(k, k) for k in cosmology.__parameters__]
++        table.rename_columns(cosmology.__parameters__, new_names)
++
++    table.write(file, overwrite=overwrite, format="latex", **kwargs)
++
++
++# ===================================================================
++# Register
++
++readwrite_registry.register_writer("latex", Cosmology, write_latex)
+
+## Example 3 — astropy__astropy-12544
+
+### Issue
+
+Can Table masking be turned off?
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+### Description
+<!-- Provide a general description of the feature you would like. -->
+<!-- If you want to, you can suggest a draft design or API. -->
+<!-- This way we have a deeper discussion on the feature. -->
+
+As of Astropy 5, when `astropy.table.Table.read()` encounters values such as `NaN`, it automatically creates a `MaskedColumn` and the whole table becomes a `MaskedTable`.  While this might be useful for individual end-users, it is very inconvenient for intermediate data in pipelines.
+
+Here's the scenario: data are being passed via files and `Table.read()`.  A downstream function needs to replace `NaN` with valid values.  Previously those values could be easily identified (*e.g.* `np.isnan()` and replaced.  However, now additional work is need to look "underneath" the mask, extracting the actual values, replacing them, and then possibly creating a new, unmasked column, or even an entirely new table.
+
+Ideally, a keyword like `Table.read(filename, ..., mask=False)` would disable this behavior, for people who don't need this masking.
+
+### Patch that fixed it
+
+diff --git a/astropy/io/fits/connect.py b/astropy/io/fits/connect.py
+--- a/astropy/io/fits/connect.py
++++ b/astropy/io/fits/connect.py
+@@ -112,7 +112,8 @@ def _decode_mixins(tbl):
+ 
+ 
+ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+-                    character_as_bytes=True, unit_parse_strict='warn'):
++                    character_as_bytes=True, unit_parse_strict='warn',
++                    mask_invalid=True):
+     """
+     Read a Table object from an FITS file
+ 
+@@ -145,6 +146,8 @@ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+         fit the table in memory, you may be better off leaving memory mapping
+         off. However, if your table would not fit in memory, you should set this
+         to `True`.
++        When set to `True` then ``mask_invalid`` is set to `False` since the
++        masking would cause loading the full data array.
+     character_as_bytes : bool, optional
+         If `True`, string columns are stored as Numpy byte arrays (dtype ``S``)
+         and are converted on-the-fly to unicode strings when accessing
+@@ -158,6 +161,11 @@ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+         :class:`~astropy.units.core.UnrecognizedUnit`.
+         Values are the ones allowed by the ``parse_strict`` argument of
+         :class:`~astropy.units.core.Unit`: ``raise``, ``warn`` and ``silent``.
++    mask_invalid : bool, optional
++        By default the code masks NaNs in float columns and empty strings in
++        string columns. Set this parameter to `False` to avoid the performance
++        penalty of doing this masking step. The masking is always deactivated
++        when using ``memmap=True`` (see above).
+ 
+     """
+ 
+@@ -214,6 +222,11 @@ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+ 
+     else:
+ 
++        if memmap:
++            # using memmap is not compatible with masking invalid value by
++            # default so we deactivate the masking
++            mask_invalid = False
++
+         hdulist = fits_open(input, character_as_bytes=character_as_bytes,
+                             memmap=memmap)
+ 
+@@ -222,6 +235,7 @@ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+                 hdulist, hdu=hdu,
+                 astropy_native=astropy_native,
+                 unit_parse_strict=unit_parse_strict,
++                mask_invalid=mask_invalid,
+             )
+         finally:
+             hdulist.close()
+@@ -246,9 +260,9 @@ def read_table_fits(input, hdu=None, astropy_native=False, memmap=False,
+             # Return a MaskedColumn even if no elements are masked so
+             # we roundtrip better.
+             masked = True
+-        elif issubclass(coltype, np.inexact):
++        elif mask_invalid and issubclass(coltype, np.inexact):
+             mask = np.isnan(data[col.name])
+-        elif issubclass(coltype, np.character):
++        elif mask_invalid and issubclass(coltype, np.character):
+             mask = col.array == b''
+ 
+         if masked or np.any(mask):
+</experiment_instructions>
+
+You will be provided with a partial code base and an issue statement explaining a problem to resolve.
+<issue>
+Please support header rows in RestructuredText output
+### Description
+
+It would be great if the following would work:
+
+```Python
+>>> from astropy.table import QTable
+>>> import astropy.units as u
+>>> import sys
+>>> tbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})
+>>> tbl.write(sys.stdout,  format="ascii.rst")
+===== ========
+ wave response
+===== ========
+350.0      0.7
+950.0      1.2
+===== ========
+>>> tbl.write(sys.stdout,  format="ascii.fixed_width", header_rows=["name", "unit"])
+|  wave | response |
+|    nm |       ct |
+| 350.0 |      0.7 |
+| 950.0 |      1.2 |
+>>> tbl.write(sys.stdout,  format="ascii.rst", header_rows=["name", "unit"])
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/usr/lib/python3/dist-packages/astropy/table/connect.py", line 129, in __call__
+    self.registry.write(instance, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/registry/core.py", line 369, in write
+    return writer(data, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/connect.py", line 26, in io_write
+    return write(table, filename, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/ui.py", line 856, in write
+    writer = get_writer(Writer=Writer, fast_writer=fast_writer, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/ui.py", line 800, in get_writer
+    writer = core._get_writer(Writer, fast_writer, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/core.py", line 1719, in _get_writer
+    writer = Writer(**writer_kwargs)
+TypeError: RST.__init__() got an unexpected keyword argument 'header_rows'
+```
+
+
+### Additional context
+
+RestructuredText output is a great way to fill autogenerated documentation with content, so having this flexible makes the life easier `:-)`
+
+
+
+</issue>
+<code>
+[start of README.rst]
+1 =======
+2 Astropy
+3 =======
+4 
+5 .. container::
+6 
+7     |Actions Status| |CircleCI Status| |Coverage Status| |PyPI Status| |Documentation Status| |Pre-Commit| |isort Status| |Zenodo|
+8 
+9 The Astropy Project (http://astropy.org/) is a community effort to develop a
+10 single core package for Astronomy in Python and foster interoperability between
+11 Python astronomy packages. This repository contains the core package which is
+12 intended to contain much of the core functionality and some common tools needed
+13 for performing astronomy and astrophysics with Python.
+14 
+15 Releases are `registered on PyPI <https://pypi.org/project/astropy>`_,
+16 and development is occurring at the
+17 `project's GitHub page <http://github.com/astropy/astropy>`_.
+18 
+19 For installation instructions, see the `online documentation <https://docs.astropy.org/>`_
+20 or  `docs/install.rst <docs/install.rst>`_ in this source distribution.
+21 
+22 Contributing Code, Documentation, or Feedback
+23 ---------------------------------------------
+24 
+25 The Astropy Project is made both by and for its users, so we welcome and
+26 encourage contributions of many kinds. Our goal is to keep this a positive,
+27 inclusive, successful, and growing community by abiding with the
+28 `Astropy Community Code of Conduct <http://www.astropy.org/about.html#codeofconduct>`_.
+29 
+30 More detailed information on contributing to the project or submitting feedback
+31 can be found on the `contributions <http://www.astropy.org/contribute.html>`_
+32 page. A `summary of contribution guidelines <CONTRIBUTING.md>`_ can also be
+33 used as a quick reference when you are ready to start writing or validating
+34 code for submission.
+35 
+36 Supporting the Project
+37 ----------------------
+38 
+39 |NumFOCUS| |Donate|
+40 
+41 The Astropy Project is sponsored by NumFOCUS, a 501(c)(3) nonprofit in the
+42 United States. You can donate to the project by using the link above, and this
+43 donation will support our mission to promote sustainable, high-level code base
+44 for the astronomy community, open code development, educational materials, and
+45 reproducible scientific research.
+46 
+47 License
+48 -------
+49 
+50 Astropy is licensed under a 3-clause BSD style license - see the
+51 `LICENSE.rst <LICENSE.rst>`_ file.
+52 
+53 .. |Actions Status| image:: https://github.com/astropy/astropy/workflows/CI/badge.svg
+54     :target: https://github.com/astropy/astropy/actions
+55     :alt: Astropy's GitHub Actions CI Status
+56 
+57 .. |CircleCI Status| image::  https://img.shields.io/circleci/build/github/astropy/astropy/main?logo=circleci&label=CircleCI
+58     :target: https://circleci.com/gh/astropy/astropy
+59     :alt: Astropy's CircleCI Status
+60 
+61 .. |Coverage Status| image:: https://codecov.io/gh/astropy/astropy/branch/main/graph/badge.svg
+62     :target: https://codecov.io/gh/astropy/astropy
+63     :alt: Astropy's Coverage Status
+64 
+65 .. |PyPI Status| image:: https://img.shields.io/pypi/v/astropy.svg
+66     :target: https://pypi.org/project/astropy
+67     :alt: Astropy's PyPI Status
+68 
+69 .. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4670728.svg
+70    :target: https://doi.org/10.5281/zenodo.4670728
+71    :alt: Zenodo DOI
+72 
+73 .. |Documentation Status| image:: https://img.shields.io/readthedocs/astropy/latest.svg?logo=read%20the%20docs&logoColor=white&label=Docs&version=stable
+74     :target: https://docs.astropy.org/en/stable/?badge=stable
+75     :alt: Documentation Status
+76 
+77 .. |Pre-Commit| image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
+78    :target: https://github.com/pre-commit/pre-commit
+79    :alt: pre-commit
+80 
+81 .. |isort Status| image:: https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336
+82     :target: https://pycqa.github.io/isort/
+83     :alt: isort Status
+84 
+85 .. |NumFOCUS| image:: https://img.shields.io/badge/powered%20by-NumFOCUS-orange.svg?style=flat&colorA=E1523D&colorB=007D8A
+86     :target: http://numfocus.org
+87     :alt: Powered by NumFOCUS
+88 
+89 .. |Donate| image:: https://img.shields.io/badge/Donate-to%20Astropy-brightgreen.svg
+90     :target: https://numfocus.salsalabs.org/donate-to-astropy/index.html
+91 
+92 
+93 If you locally cloned this repo before 7 Apr 2021
+94 -------------------------------------------------
+95 
+96 The primary branch for this repo has been transitioned from ``master`` to
+97 ``main``.  If you have a local clone of this repository and want to keep your
+98 local branch in sync with this repo, you'll need to do the following in your
+99 local clone from your terminal::
+100 
+101    git fetch --all --prune
+102    # you can stop here if you don't use your local "master"/"main" branch
+103    git branch -m master main
+104    git branch -u origin/main main
+105 
+106 If you are using a GUI to manage your repos you'll have to find the equivalent
+107 commands as it's different for different programs. Alternatively, you can just
+108 delete your local clone and re-clone!
+109 
+[end of README.rst]
+[start of astropy/io/ascii/rst.py]
+1 # Licensed under a 3-clause BSD style license
+2 """
+3 :Author: Simon Gibbons (simongibbons@gmail.com)
+4 """
+5 
+6 
+7 from .core import DefaultSplitter
+8 from .fixedwidth import (
+9     FixedWidth,
+10     FixedWidthData,
+11     FixedWidthHeader,
+12     FixedWidthTwoLineDataSplitter,
+13 )
+14 
+15 
+16 class SimpleRSTHeader(FixedWidthHeader):
+17     position_line = 0
+18     start_line = 1
+19     splitter_class = DefaultSplitter
+20     position_char = "="
+21 
+22     def get_fixedwidth_params(self, line):
+23         vals, starts, ends = super().get_fixedwidth_params(line)
+24         # The right hand column can be unbounded
+25         ends[-1] = None
+26         return vals, starts, ends
+27 
+28 
+29 class SimpleRSTData(FixedWidthData):
+30     start_line = 3
+31     end_line = -1
+32     splitter_class = FixedWidthTwoLineDataSplitter
+33 
+34 
+35 class RST(FixedWidth):
+36     """reStructuredText simple format table.
+37 
+38     See: https://docutils.sourceforge.io/docs/ref/rst/restructuredtext.html#simple-tables
+39 
+40     Example::
+41 
+42         ==== ===== ======
+43         Col1  Col2  Col3
+44         ==== ===== ======
+45           1    2.3  Hello
+46           2    4.5  Worlds
+47         ==== ===== ======
+48 
+49     Currently there is no support for reading tables which utilize continuation lines,
+50     or for ones which define column spans through the use of an additional
+51     line of dashes in the header.
+52 
+53     """
+54 
+55     _format_name = "rst"
+56     _description = "reStructuredText simple table"
+57     data_class = SimpleRSTData
+58     header_class = SimpleRSTHeader
+59 
+60     def __init__(self):
+61         super().__init__(delimiter_pad=None, bookend=False)
+62 
+63     def write(self, lines):
+64         lines = super().write(lines)
+65         lines = [lines[1]] + lines + [lines[1]]
+66         return lines
+67 
+[end of astropy/io/ascii/rst.py]
+</code>
+I need you to solve this issue by generating a single patch file that I can apply directly to this repository using git apply. Please respond with a single patch file in the following format.
+<patch>
+--- a/file.py
++++ b/file.py
+@@ -1,27 +1,35 @@
+ def euclidean(a, b):
+-    while b:
+-        a, b = b, a % b
+-    return a
++    if b == 0:
++        return a
++    return euclidean(b, a % b)
+ 
+ 
+ def bresenham(x0, y0, x1, y1):
+     points = []
+     dx = abs(x1 - x0)
+     dy = abs(y1 - y0)
+-    sx = 1 if x0 < x1 else -1
+-    sy = 1 if y0 < y1 else -1
+-    err = dx - dy
++    x, y = x0, y0
++    sx = -1 if x0 > x1 else 1
++    sy = -1 if y0 > y1 else 1
+ 
+-    while True:
+-        points.append((x0, y0))
+-        if x0 == x1 and y0 == y1:
+-            break
+-        e2 = 2 * err
+-        if e2 > -dy:
++    if dx > dy:
++        err = dx / 2.0
++        while x != x1:
++            points.append((x, y))
+             err -= dy
+-            x0 += sx
+-        if e2 < dx:
+-            err += dx
+-            y0 += sy
++            if err < 0:
++                y += sy
++                err += dx
++            x += sx
++    else:
++        err = dy / 2.0
++        while y != y1:
++            points.append((x, y))
++            err -= dx
++            if err < 0:
++                x += sx
++                err += dy
++            y += sy
+ 
++    points.append((x, y))
+     return points
+</patch>
+

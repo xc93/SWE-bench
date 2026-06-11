@@ -1,0 +1,785 @@
+<experiment_instructions>
+# Demonstration-Guided Repair Directive (v6 — jointembed)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue.
+
+Below this directive you will find several **solved examples**: real issues from the same codebase that are semantically similar to the task, each paired with the exact patch that fixed it. Use them the way a retrieval system intends:
+
+- **Study each example's issue → patch mapping first**: which subsystem it touches, where the root cause sat relative to the symptom, how small the fix is, how the maintainers shaped it (guard clause vs. parameter propagation vs. dtype/rounding handling vs. serialization fix), and what the patch deliberately did *not* touch.
+- **Transfer patterns, not text.** The examples are different problems: never copy their patches, their line numbers, or their file choices blindly. What transfers is the diagnostic approach and the fix *shape*.
+- Note conventions the examples reveal about this codebase: API style, error-handling habits, how public behavior is preserved, typical patch size.
+- Then solve the new issue: locate the root cause in the provided files, apply the most fitting pattern, and keep the fix as focused as the example patches are.
+
+Constraints:
+
+- The examples are background material. **Your final answer must contain only your own patch for the new issue** — never reproduce or quote the example patches in it.
+- **Output format:** the task instructions in the user message govern the final answer's formatting — the patch format, any wrappers, and all output constraints. They take precedence over anything here.
+
+
+# Solved examples from the same codebase
+
+The following are real, already-fixed issues semantically similar to the task you will receive, each with the exact patch that fixed it. Study how each issue maps to its patch before solving the new issue.
+
+## Example 1 — astropy__astropy-12880
+
+### Issue
+
+No longer able to read BinnedTimeSeries with datetime column saved as ECSV after upgrading from 4.2.1 -> 5.0+
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+<!-- Provide a general description of the bug. -->
+Hi, [This commit](https://github.com/astropy/astropy/commit/e807dbff9a5c72bdc42d18c7d6712aae69a0bddc) merged in PR #11569 breaks my ability to read an ECSV file created using Astropy v 4.2.1, BinnedTimeSeries class's write method, which has a datetime64 column. Downgrading astropy back to 4.2.1 fixes the issue because the strict type checking in line 177 of ecsv.py is not there.
+
+Is there a reason why this strict type checking was added to ECSV? Is there a way to preserve reading and writing of ECSV files created with BinnedTimeSeries across versions? I am happy to make a PR on this if the strict type checking is allowed to be scaled back or we can add datetime64 as an allowed type. 
+
+### Expected behavior
+<!-- What did you expect to happen. -->
+
+The file is read into a `BinnedTimeSeries` object from ecsv file without error.
+
+### Actual behavior
+<!-- What actually happened. -->
+<!-- Was the output confusing or poorly described? -->
+
+ValueError is produced and the file is not read because ECSV.py does not accept the datetime64 column.
+`ValueError: datatype 'datetime64' of column 'time_bin_start' is not in allowed values ('bool', 'int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'float16', 'float32', 'float64', 'float128', 'string')`
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+The file is read using:    
+`BinnedTimeSeries.read('<file_path>', format='ascii.ecsv')`
+which gives a long error. 
+
+
+The file in question is a binned time series created by  `astropy.timeseries.aggregate_downsample`. which itself is a binned version of an `astropy.timeseries.TimeSeries` instance with some TESS data. (loaded via TimeSeries.from_pandas(Tess.set_index('datetime')). I.e., it has a datetime64 index.  The file was written using the classes own .write method in Astropy V4.2.1 from an instance of said class:   
+`myBinnedTimeSeries.write('<file_path>',format='ascii.ecsv',overwrite=True)`
+
+I'll attach a concatenated version of the file (as it contains private data). However, the relevant part from the header is on line 4:
+
+```
+# %ECSV 0.9
+# ---
+# datatype:
+# - {name: time_bin_start, datatype: datetime64}
+```
+
+as you can see, the datatype is datetime64. This works fine with ECSV V0.9 but not V1.0 as some sort of strict type checking was added. 
+
+### 
+Full error log:
+```
+---------------------------------------------------------------------------
+ValueError                                Traceback (most recent call last)
+Input In [3], in <module>
+---> 49 tsrbin = BinnedTimeSeries.read('../Photometry/tsr_bin.dat', format='ascii.ecsv')
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/timeseries/binned.py:285, in BinnedTimeSeries.read(self, filename, time_bin_start_column, time_bin_end_column, time_bin_size_column, time_bin_size_unit, time_format, time_scale, format, *args, **kwargs)
+    230 """
+    231 Read and parse a file and returns a `astropy.timeseries.BinnedTimeSeries`.
+    232 
+   (...)
+    279 
+    280 """
+    282 try:
+    283 
+    284     # First we try the readers defined for the BinnedTimeSeries class
+--> 285     return super().read(filename, format=format, *args, **kwargs)
+    287 except TypeError:
+    288 
+    289     # Otherwise we fall back to the default Table readers
+    291     if time_bin_start_column is None:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/table/connect.py:62, in TableRead.__call__(self, *args, **kwargs)
+     59 units = kwargs.pop('units', None)
+     60 descriptions = kwargs.pop('descriptions', None)
+---> 62 out = self.registry.read(cls, *args, **kwargs)
+     64 # For some readers (e.g., ascii.ecsv), the returned `out` class is not
+     65 # guaranteed to be the same as the desired output `cls`.  If so,
+     66 # try coercing to desired class without copying (io.registry.read
+     67 # would normally do a copy).  The normal case here is swapping
+     68 # Table <=> QTable.
+     69 if cls is not out.__class__:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/registry/core.py:199, in UnifiedInputRegistry.read(self, cls, format, cache, *args, **kwargs)
+    195     format = self._get_valid_format(
+    196         'read', cls, path, fileobj, args, kwargs)
+    198 reader = self.get_reader(format, cls)
+--> 199 data = reader(*args, **kwargs)
+    201 if not isinstance(data, cls):
+    202     # User has read with a subclass where only the parent class is
+    203     # registered.  This returns the parent class, so try coercing
+    204     # to desired subclass.
+    205     try:
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/connect.py:18, in io_read(format, filename, **kwargs)
+     16     format = re.sub(r'^ascii\.', '', format)
+     17     kwargs['format'] = format
+---> 18 return read(filename, **kwargs)
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/ui.py:376, in read(table, guess, **kwargs)
+    374     else:
+    375         reader = get_reader(**new_kwargs)
+--> 376         dat = reader.read(table)
+    377         _read_trace.append({'kwargs': copy.deepcopy(new_kwargs),
+    378                             'Reader': reader.__class__,
+    379                             'status': 'Success with specified Reader class '
+    380                                       '(no guessing)'})
+    382 # Static analysis (pyright) indicates `dat` might be left undefined, so just
+    383 # to be sure define it at the beginning and check here.
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/core.py:1343, in BaseReader.read(self, table)
+   1340 self.header.update_meta(self.lines, self.meta)
+   1342 # Get the table column definitions
+-> 1343 self.header.get_cols(self.lines)
+   1345 # Make sure columns are valid
+   1346 self.header.check_column_names(self.names, self.strict_names, self.guessing)
+
+File ~/Apps/miniconda3/envs/py310_latest/lib/python3.10/site-packages/astropy/io/ascii/ecsv.py:177, in EcsvHeader.get_cols(self, lines)
+    175 col.dtype = header_cols[col.name]['datatype']
+    176 if col.dtype not in ECSV_DATATYPES:
+--> 177     raise ValueError(f'datatype {col.dtype!r} of column {col.name!r} '
+    178                      f'is not in allowed values {ECSV_DATATYPES}')
+    180 # Subtype is written like "int64[2,null]" and we want to split this
+    181 # out to "int64" and [2, None].
+    182 subtype = col.subtype
+
+ValueError: datatype 'datetime64' of column 'time_bin_start' is not in allowed values ('bool', 'int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'float16', 'float32', 'float64', 'float128', 'string')
+```
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+(For the version that does not work)
+Python 3.10.2 | packaged by conda-forge | (main, Feb  1 2022, 19:28:35) [GCC 9.4.0]
+Numpy 1.22.2
+pyerfa 2.0.0.1
+astropy 5.0.1
+Scipy 1.8.0
+Matplotlib 3.5.1
+
+(For the version that does work)
+Python 3.7.11 (default, Jul 27 2021, 14:32:16) [GCC 7.5.0]
+Numpy 1.20.3
+pyerfa 2.0.0.1
+astropy 4.2.1
+Scipy 1.7.0
+Matplotlib 3.4.2
+
+### Patch that fixed it
+
+diff --git a/astropy/io/ascii/ecsv.py b/astropy/io/ascii/ecsv.py
+--- a/astropy/io/ascii/ecsv.py
++++ b/astropy/io/ascii/ecsv.py
+@@ -129,7 +129,9 @@ def get_cols(self, lines):
+         match = re.match(ecsv_header_re, lines[0].strip(), re.VERBOSE)
+         if not match:
+             raise core.InconsistentTableError(no_header_msg)
+-        # ecsv_version could be constructed here, but it is not currently used.
++
++        # Construct ecsv_version for backwards compatibility workarounds.
++        self.ecsv_version = tuple(int(v or 0) for v in match.groups())
+ 
+         try:
+             header = meta.get_header_from_yaml(lines)
+@@ -173,7 +175,11 @@ def get_cols(self, lines):
+                     setattr(col, attr, header_cols[col.name][attr])
+ 
+             col.dtype = header_cols[col.name]['datatype']
+-            if col.dtype not in ECSV_DATATYPES:
++            # Require col dtype to be a valid ECSV datatype. However, older versions
++            # of astropy writing ECSV version 0.9 and earlier had inadvertently allowed
++            # numpy datatypes like datetime64 or object or python str, which are not in the ECSV standard.
++            # For back-compatibility with those existing older files, allow reading with no error.
++            if col.dtype not in ECSV_DATATYPES and self.ecsv_version > (0, 9, 0):
+                 raise ValueError(f'datatype {col.dtype!r} of column {col.name!r} '
+                                  f'is not in allowed values {ECSV_DATATYPES}')
+
+## Example 2 — astropy__astropy-13745
+
+### Issue
+
+float32 representation of pi/2 is rejected by `Latitude`
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+
+The closest float32 value to pi/2 is by accident slightly larger than pi/2:
+
+```
+In [5]: np.pi/2
+Out[5]: 1.5707963267948966
+
+In [6]: np.float32(np.pi/2)
+Out[6]: 1.5707964
+```
+
+Astropy checks using float64 precision, rejecting "valid" alt values (e.g. float32 values read from files):
+
+```
+
+In [1]: from astropy.coordinates import Latitude
+
+In [2]: import numpy as np
+
+In [3]: lat = np.float32(np.pi/2)
+
+In [4]: Latitude(lat, 'rad')
+---------------------------------------------------------------------------
+ValueError                                Traceback (most recent call last)
+Cell In [4], line 1
+----> 1 Latitude(lat, 'rad')
+
+File ~/.local/lib/python3.10/site-packages/astropy/coordinates/angles.py:564, in Latitude.__new__(cls, angle, unit, **kwargs)
+    562     raise TypeError("A Latitude angle cannot be created from a Longitude angle")
+    563 self = super().__new__(cls, angle, unit=unit, **kwargs)
+--> 564 self._validate_angles()
+    565 return self
+
+File ~/.local/lib/python3.10/site-packages/astropy/coordinates/angles.py:585, in Latitude._validate_angles(self, angles)
+    582     invalid_angles = (np.any(angles.value < lower) or
+    583                       np.any(angles.value > upper))
+    584 if invalid_angles:
+--> 585     raise ValueError('Latitude angle(s) must be within -90 deg <= angle <= 90 deg, '
+    586                      'got {}'.format(angles.to(u.degree)))
+
+ValueError: Latitude angle(s) must be within -90 deg <= angle <= 90 deg, got 90.00000250447816 deg
+```
+
+### Expected behavior
+
+Be lenient? E.g. only make the comparison up to float 32 precision?
+
+### Actual behavior
+See error above
+
+### Steps to Reproduce
+
+See snippet above.
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+```
+Linux-5.15.65-1-MANJARO-x86_64-with-glibc2.36
+Python 3.10.7 (main, Sep  6 2022, 21:22:27) [GCC 12.2.0]
+Numpy 1.23.3
+pyerfa 2.0.0.1
+astropy 5.0.1
+Scipy 1.9.1
+Matplotlib 3.5.2
+```
+
+### Patch that fixed it
+
+diff --git a/astropy/coordinates/angles.py b/astropy/coordinates/angles.py
+--- a/astropy/coordinates/angles.py
++++ b/astropy/coordinates/angles.py
+@@ -587,7 +587,7 @@ def _validate_angles(self, angles=None):
+         if angles.unit is u.deg:
+             limit = 90
+         elif angles.unit is u.rad:
+-            limit = 0.5 * np.pi
++            limit = self.dtype.type(0.5 * np.pi)
+         else:
+             limit = u.degree.to(angles.unit, 90.0)
+
+## Example 3 — astropy__astropy-8339
+
+### Issue
+
+ncp_prior referenced before assignment in Bayesian Blocks
+There is a bug in the bayesian blocks algorithm of astropy.stats. It's not a big deal so I show you below how to solve it directly.
+
+When I call:
+```python
+bayesian_blocks(tt, ff, sig, fitness='measures', ncp_prior=ncpp)
+```
+
+I get:
+```
+Traceback (most recent call last):
+
+  File "<ipython-input-29-9adfe04a2714>", line 1, in <module>
+    bayesian_blocks(tt, ff, sig, fitness='measures',ncp_prior=ncpp)
+
+  File "bayesian_blocks.py", line 154, in bayesian_blocks
+    return fitfunc.fit(t, x, sigma)
+
+  File "bayesian_blocks.py", line 373, in fit
+    A_R = fit_vec - ncp_prior
+
+UnboundLocalError: local variable 'ncp_prior' referenced before assignment
+```
+You can fix this just by changing:
+```python
+        if self.ncp_prior is None:
+            ncp_prior = self.compute_ncp_prior(N)
+```
+adding an else sentence
+```python
+        else:
+            ncp_prior = self.ncp_prior
+```
+EDIT: Text formatting
+ncp_prior referenced before assignment in Bayesian Blocks
+There is a bug in the bayesian blocks algorithm of astropy.stats. It's not a big deal so I show you below how to solve it directly.
+
+When I call:
+```python
+bayesian_blocks(tt, ff, sig, fitness='measures', ncp_prior=ncpp)
+```
+
+I get:
+```
+Traceback (most recent call last):
+
+  File "<ipython-input-29-9adfe04a2714>", line 1, in <module>
+    bayesian_blocks(tt, ff, sig, fitness='measures',ncp_prior=ncpp)
+
+  File "bayesian_blocks.py", line 154, in bayesian_blocks
+    return fitfunc.fit(t, x, sigma)
+
+  File "bayesian_blocks.py", line 373, in fit
+    A_R = fit_vec - ncp_prior
+
+UnboundLocalError: local variable 'ncp_prior' referenced before assignment
+```
+You can fix this just by changing:
+```python
+        if self.ncp_prior is None:
+            ncp_prior = self.compute_ncp_prior(N)
+```
+adding an else sentence
+```python
+        else:
+            ncp_prior = self.ncp_prior
+```
+EDIT: Text formatting
+
+### Patch that fixed it
+
+diff --git a/astropy/stats/bayesian_blocks.py b/astropy/stats/bayesian_blocks.py
+--- a/astropy/stats/bayesian_blocks.py
++++ b/astropy/stats/bayesian_blocks.py
+@@ -289,15 +289,14 @@ def compute_ncp_prior(self, N):
+         If ``ncp_prior`` is not explicitly defined, compute it from ``gamma``
+         or ``p0``.
+         """
+-        if self.ncp_prior is not None:
+-            return self.ncp_prior
+-        elif self.gamma is not None:
++
++        if self.gamma is not None:
+             return -np.log(self.gamma)
+         elif self.p0 is not None:
+             return self.p0_prior(N)
+         else:
+-            raise ValueError("``ncp_prior`` is not defined, and cannot compute "
+-                             "it as neither ``gamma`` nor ``p0`` is defined.")
++            raise ValueError("``ncp_prior`` cannot be computed as neither "
++                             "``gamma`` nor ``p0`` is defined.")
+ 
+     def fit(self, t, x=None, sigma=None):
+         """Fit the Bayesian Blocks model given the specified fitness function.
+@@ -340,6 +339,9 @@ def fit(self, t, x=None, sigma=None):
+         # Compute ncp_prior if not defined
+         if self.ncp_prior is None:
+             ncp_prior = self.compute_ncp_prior(N)
++        else:
++            ncp_prior = self.ncp_prior
++
+         # ----------------------------------------------------------------
+         # Start with first data cell; add one cell at each iteration
+         # ----------------------------------------------------------------
+</experiment_instructions>
+
+You will be provided with a partial code base and an issue statement explaining a problem to resolve.
+<issue>
+TimeSeries: misleading exception when required column check fails.
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+<!-- Provide a general description of the bug. -->
+
+For a `TimeSeries` object that has additional required columns (in addition to `time`), when codes mistakenly try to remove a required column, the exception it produces is misleading.
+
+### Expected behavior
+<!-- What did you expect to happen. -->
+An exception that informs the users required columns are missing.
+
+### Actual behavior
+The actual exception message is confusing:
+`ValueError: TimeSeries object is invalid - expected 'time' as the first columns but found 'time'`
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+```python
+from astropy.time import Time
+from astropy.timeseries import TimeSeries
+
+time=Time(np.arange(100000, 100003), format='jd')
+ts = TimeSeries(time=time, data = {"flux": [99.9, 99.8, 99.7]})
+ts._required_columns = ["time", "flux"]                                   
+ts.remove_column("flux")
+
+```
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+```
+Windows-10-10.0.22000-SP0
+Python 3.9.10 | packaged by conda-forge | (main, Feb  1 2022, 21:21:54) [MSC v.1929 64 bit (AMD64)]
+Numpy 1.22.3
+pyerfa 2.0.0.1
+astropy 5.0.3
+Scipy 1.8.0
+Matplotlib 3.5.1
+```
+
+</issue>
+<code>
+[start of README.rst]
+1 =======
+2 Astropy
+3 =======
+4 
+5 |Actions Status| |CircleCI Status| |Azure Status| |Coverage Status| |PyPI Status| |Documentation Status| |Zenodo|
+6 
+7 The Astropy Project (http://astropy.org/) is a community effort to develop a
+8 single core package for Astronomy in Python and foster interoperability between
+9 Python astronomy packages. This repository contains the core package which is
+10 intended to contain much of the core functionality and some common tools needed
+11 for performing astronomy and astrophysics with Python.
+12 
+13 Releases are `registered on PyPI <https://pypi.org/project/astropy>`_,
+14 and development is occurring at the
+15 `project's GitHub page <http://github.com/astropy/astropy>`_.
+16 
+17 For installation instructions, see the `online documentation <https://docs.astropy.org/>`_
+18 or  `docs/install.rst <docs/install.rst>`_ in this source distribution.
+19 
+20 Contributing Code, Documentation, or Feedback
+21 ---------------------------------------------
+22 
+23 The Astropy Project is made both by and for its users, so we welcome and
+24 encourage contributions of many kinds. Our goal is to keep this a positive,
+25 inclusive, successful, and growing community by abiding with the
+26 `Astropy Community Code of Conduct <http://www.astropy.org/about.html#codeofconduct>`_.
+27 
+28 More detailed information on contributing to the project or submitting feedback
+29 can be found on the `contributions <http://www.astropy.org/contribute.html>`_
+30 page. A `summary of contribution guidelines <CONTRIBUTING.md>`_ can also be
+31 used as a quick reference when you are ready to start writing or validating
+32 code for submission.
+33 
+34 Supporting the Project
+35 ----------------------
+36 
+37 |NumFOCUS| |Donate|
+38 
+39 The Astropy Project is sponsored by NumFOCUS, a 501(c)(3) nonprofit in the
+40 United States. You can donate to the project by using the link above, and this
+41 donation will support our mission to promote sustainable, high-level code base
+42 for the astronomy community, open code development, educational materials, and
+43 reproducible scientific research.
+44 
+45 License
+46 -------
+47 
+48 Astropy is licensed under a 3-clause BSD style license - see the
+49 `LICENSE.rst <LICENSE.rst>`_ file.
+50 
+51 .. |Actions Status| image:: https://github.com/astropy/astropy/workflows/CI/badge.svg
+52     :target: https://github.com/astropy/astropy/actions
+53     :alt: Astropy's GitHub Actions CI Status
+54 
+55 .. |CircleCI Status| image::  https://img.shields.io/circleci/build/github/astropy/astropy/main?logo=circleci&label=CircleCI
+56     :target: https://circleci.com/gh/astropy/astropy
+57     :alt: Astropy's CircleCI Status
+58 
+59 .. |Azure Status| image:: https://dev.azure.com/astropy-project/astropy/_apis/build/status/astropy.astropy?repoName=astropy%2Fastropy&branchName=main
+60     :target: https://dev.azure.com/astropy-project/astropy
+61     :alt: Astropy's Azure Pipelines Status
+62 
+63 .. |Coverage Status| image:: https://codecov.io/gh/astropy/astropy/branch/main/graph/badge.svg
+64     :target: https://codecov.io/gh/astropy/astropy
+65     :alt: Astropy's Coverage Status
+66 
+67 .. |PyPI Status| image:: https://img.shields.io/pypi/v/astropy.svg
+68     :target: https://pypi.org/project/astropy
+69     :alt: Astropy's PyPI Status
+70 
+71 .. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4670728.svg
+72    :target: https://doi.org/10.5281/zenodo.4670728
+73    :alt: Zenodo DOI
+74 
+75 .. |Documentation Status| image:: https://img.shields.io/readthedocs/astropy/latest.svg?logo=read%20the%20docs&logoColor=white&label=Docs&version=stable
+76     :target: https://docs.astropy.org/en/stable/?badge=stable
+77     :alt: Documentation Status
+78 
+79 .. |NumFOCUS| image:: https://img.shields.io/badge/powered%20by-NumFOCUS-orange.svg?style=flat&colorA=E1523D&colorB=007D8A
+80     :target: http://numfocus.org
+81     :alt: Powered by NumFOCUS
+82 
+83 .. |Donate| image:: https://img.shields.io/badge/Donate-to%20Astropy-brightgreen.svg
+84     :target: https://numfocus.salsalabs.org/donate-to-astropy/index.html
+85 
+86 
+87 If you locally cloned this repo before 7 Apr 2021
+88 -------------------------------------------------
+89 
+90 The primary branch for this repo has been transitioned from ``master`` to
+91 ``main``.  If you have a local clone of this repository and want to keep your
+92 local branch in sync with this repo, you'll need to do the following in your
+93 local clone from your terminal::
+94 
+95    git fetch --all --prune
+96    # you can stop here if you don't use your local "master"/"main" branch
+97    git branch -m master main
+98    git branch -u origin/main main
+99 
+100 If you are using a GUI to manage your repos you'll have to find the equivalent
+101 commands as it's different for different programs. Alternatively, you can just
+102 delete your local clone and re-clone!
+103 
+[end of README.rst]
+[start of astropy/timeseries/core.py]
+1 # Licensed under a 3-clause BSD style license - see LICENSE.rst
+2 
+3 from types import FunctionType
+4 from contextlib import contextmanager
+5 from functools import wraps
+6 
+7 from astropy.table import QTable
+8 
+9 __all__ = ['BaseTimeSeries', 'autocheck_required_columns']
+10 
+11 COLUMN_RELATED_METHODS = ['add_column',
+12                           'add_columns',
+13                           'keep_columns',
+14                           'remove_column',
+15                           'remove_columns',
+16                           'rename_column']
+17 
+18 
+19 def autocheck_required_columns(cls):
+20     """
+21     This is a decorator that ensures that the table contains specific
+22     methods indicated by the _required_columns attribute. The aim is to
+23     decorate all methods that might affect the columns in the table and check
+24     for consistency after the methods have been run.
+25     """
+26 
+27     def decorator_method(method):
+28 
+29         @wraps(method)
+30         def wrapper(self, *args, **kwargs):
+31             result = method(self, *args, **kwargs)
+32             self._check_required_columns()
+33             return result
+34 
+35         return wrapper
+36 
+37     for name in COLUMN_RELATED_METHODS:
+38         if (not hasattr(cls, name) or
+39                 not isinstance(getattr(cls, name), FunctionType)):
+40             raise ValueError(f"{name} is not a valid method")
+41         setattr(cls, name, decorator_method(getattr(cls, name)))
+42 
+43     return cls
+44 
+45 
+46 class BaseTimeSeries(QTable):
+47 
+48     _required_columns = None
+49     _required_columns_enabled = True
+50 
+51     # If _required_column_relax is True, we don't require the columns to be
+52     # present but we do require them to be the correct ones IF present. Note
+53     # that this is a temporary state - as soon as the required columns
+54     # are all present, we toggle this to False
+55     _required_columns_relax = False
+56 
+57     def _check_required_columns(self):
+58 
+59         if not self._required_columns_enabled:
+60             return
+61 
+62         if self._required_columns is not None:
+63 
+64             if self._required_columns_relax:
+65                 required_columns = self._required_columns[:len(self.colnames)]
+66             else:
+67                 required_columns = self._required_columns
+68 
+69             plural = 's' if len(required_columns) > 1 else ''
+70 
+71             if not self._required_columns_relax and len(self.colnames) == 0:
+72 
+73                 raise ValueError("{} object is invalid - expected '{}' "
+74                                  "as the first column{} but time series has no columns"
+75                                  .format(self.__class__.__name__, required_columns[0], plural))
+76 
+77             elif self.colnames[:len(required_columns)] != required_columns:
+78 
+79                 raise ValueError("{} object is invalid - expected '{}' "
+80                                  "as the first column{} but found '{}'"
+81                                  .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))
+82 
+83             if (self._required_columns_relax
+84                     and self._required_columns == self.colnames[:len(self._required_columns)]):
+85                 self._required_columns_relax = False
+86 
+87     @contextmanager
+88     def _delay_required_column_checks(self):
+89         self._required_columns_enabled = False
+90         yield
+91         self._required_columns_enabled = True
+92         self._check_required_columns()
+93 
+[end of astropy/timeseries/core.py]
+</code>
+I need you to solve this issue by generating a single patch file that I can apply directly to this repository using git apply. Please respond with a single patch file in the following format.
+<patch>
+--- a/file.py
++++ b/file.py
+@@ -1,27 +1,35 @@
+ def euclidean(a, b):
+-    while b:
+-        a, b = b, a % b
+-    return a
++    if b == 0:
++        return a
++    return euclidean(b, a % b)
+ 
+ 
+ def bresenham(x0, y0, x1, y1):
+     points = []
+     dx = abs(x1 - x0)
+     dy = abs(y1 - y0)
+-    sx = 1 if x0 < x1 else -1
+-    sy = 1 if y0 < y1 else -1
+-    err = dx - dy
++    x, y = x0, y0
++    sx = -1 if x0 > x1 else 1
++    sy = -1 if y0 > y1 else 1
+ 
+-    while True:
+-        points.append((x0, y0))
+-        if x0 == x1 and y0 == y1:
+-            break
+-        e2 = 2 * err
+-        if e2 > -dy:
++    if dx > dy:
++        err = dx / 2.0
++        while x != x1:
++            points.append((x, y))
+             err -= dy
+-            x0 += sx
+-        if e2 < dx:
+-            err += dx
+-            y0 += sy
++            if err < 0:
++                y += sy
++                err += dx
++            x += sx
++    else:
++        err = dy / 2.0
++        while y != y1:
++            points.append((x, y))
++            err -= dx
++            if err < 0:
++                x += sx
++                err += dy
++            y += sy
+ 
++    points.append((x, y))
+     return points
+</patch>
+

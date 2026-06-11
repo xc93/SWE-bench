@@ -1,0 +1,372 @@
+# Demonstration-Guided Repair Directive (v6 — jointembed)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue.
+
+Below this directive you will find several **solved examples**: real issues from the same codebase that are semantically similar to the task, each paired with the exact patch that fixed it. Use them the way a retrieval system intends:
+
+- **Study each example's issue → patch mapping first**: which subsystem it touches, where the root cause sat relative to the symptom, how small the fix is, how the maintainers shaped it (guard clause vs. parameter propagation vs. dtype/rounding handling vs. serialization fix), and what the patch deliberately did *not* touch.
+- **Transfer patterns, not text.** The examples are different problems: never copy their patches, their line numbers, or their file choices blindly. What transfers is the diagnostic approach and the fix *shape*.
+- Note conventions the examples reveal about this codebase: API style, error-handling habits, how public behavior is preserved, typical patch size.
+- Then solve the new issue: locate the root cause in the provided files, apply the most fitting pattern, and keep the fix as focused as the example patches are.
+
+Constraints:
+
+- The examples are background material. **Your final answer must contain only your own patch for the new issue** — never reproduce or quote the example patches in it.
+- **Output format:** the task instructions in the user message govern the final answer's formatting — the patch format, any wrappers, and all output constraints. They take precedence over anything here.
+
+
+# Solved examples from the same codebase
+
+The following are real, already-fixed issues semantically similar to the task you will receive, each with the exact patch that fixed it. Study how each issue maps to its patch before solving the new issue.
+
+## Example 1 — astropy__astropy-13638
+
+### Issue
+
+`Quantity.__ilshift__` throws exception with `dtype=int`
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+<!-- Provide a general description of the bug. -->
+
+The `astropy.units.quantity_input` decorator throws a `UFuncTypeError` when used on a function that returns a `Quantity` with `dtype=int` and a return type annotation. 
+
+### Expected behavior
+<!-- What did you expect to happen. -->
+
+For the function to return a `Quantity` with `dtype=int` with the appropriate units or to throw an exception if the output units are of the wrong type.
+
+### Actual behavior
+<!-- What actually happened. -->
+<!-- Was the output confusing or poorly described? -->
+
+Using the decorator results in a `UFuncTypeError`
+
+### Steps to Reproduce
+
+```python
+import astropy.units as u
+@u.quantity_input
+def foo()->u.pix: return u.Quantity(1, 'pix', dtype=int)
+foo()
+```
+
+gives
+
+```python-traceback
+---------------------------------------------------------------------------
+UFuncTypeError                            Traceback (most recent call last)
+Input In [26], in <cell line: 1>()
+----> 1 foofoo()
+
+File ~/anaconda/envs/aiapy-dev/lib/python3.9/site-packages/astropy/units/decorators.py:320, in QuantityInput.__call__.<locals>.wrapper(*func_args, **func_kwargs)
+    316     _validate_arg_value("return", wrapped_function.__name__,
+    317                         return_, valid_targets, self.equivalencies,
+    318                         self.strict_dimensionless)
+    319     if len(valid_targets) > 0:
+--> 320         return_ <<= valid_targets[0]
+    321 return return_
+
+File ~/anaconda/envs/aiapy-dev/lib/python3.9/site-packages/astropy/units/quantity.py:1087, in Quantity.__ilshift__(self, other)
+   1084     self.view(np.ndarray)[...] = value
+   1086 else:
+-> 1087     self.view(np.ndarray)[...] *= factor
+   1089 self._set_unit(other)
+   1090 return self
+
+UFuncTypeError: Cannot cast ufunc 'multiply' output from dtype('float64') to dtype('int64') with casting rule 'same_kind'
+```
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+
+```
+macOS-10.16-x86_64-i386-64bit
+Python 3.9.7 (default, Sep 16 2021, 08:50:36)
+[Clang 10.0.0 ]
+Numpy 1.22.3
+pyerfa 2.0.0.1
+astropy 5.0.2
+Scipy 1.8.0
+Matplotlib 3.5.1
+```
+
+### Patch that fixed it
+
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -1088,21 +1088,23 @@ def __ilshift__(self, other):
+         try:
+             other = Unit(other, parse_strict='silent')
+         except UnitTypeError:
+-            return NotImplemented
++            return NotImplemented  # try other.__rlshift__(self)
+ 
+         try:
+             factor = self.unit._to(other)
+-        except Exception:
+-            # Maybe via equivalencies?  Now we do make a temporary copy.
+-            try:
+-                value = self._to_value(other)
+-            except UnitConversionError:
+-                return NotImplemented
+-
+-            self.view(np.ndarray)[...] = value
++        except UnitConversionError:  # incompatible, or requires an Equivalency
++            return NotImplemented
++        except AttributeError:  # StructuredUnit does not have `_to`
++            # In principle, in-place might be possible.
++            return NotImplemented
+ 
+-        else:
+-            self.view(np.ndarray)[...] *= factor
++        view = self.view(np.ndarray)
++        try:
++            view *= factor  # operates on view
++        except TypeError:
++            # The error is `numpy.core._exceptions._UFuncOutputCastingError`,
++            # which inherits from `TypeError`.
++            return NotImplemented
+ 
+         self._set_unit(other)
+         return self
+
+## Example 2 — astropy__astropy-14163
+
+### Issue
+
+Should calling `np.array_equal()` on `astropy.units.Quantity` instances with incompatible units return `False`?
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+Using `np.array_equal()` on `Quantity` instances with incompatible units raises a `UnitConversionError`.
+
+### Expected behavior
+I would've expected this function just to return `False` in this case. Do we think it's really necessary to halt if the units are incompatible?
+
+### Actual behavior
+<!-- What actually happened. -->
+An `astropy.core.UnitsConversionError` exception was raised.
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+```python
+>>> np.array_equal([1, 2, 3] * u.mm, [1, 2, 3] * u.s)
+
+Traceback (most recent call last):
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity.py", line 980, in to_value
+    scale = self.unit._to(unit)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\core.py", line 1129, in _to
+    raise UnitConversionError(f"'{self!r}' is not a scaled version of '{other!r}'")
+astropy.units.core.UnitConversionError: 'Unit("s")' is not a scaled version of 'Unit("mm")'
+During handling of the above exception, another exception occurred:
+Traceback (most recent call last):
+  File "C:\Users\royts\AppData\Local\Programs\Python\Python310\lib\site-packages\IPython\core\interactiveshell.py", line 3378, in run_code
+    exec(code_obj, self.user_global_ns, self.user_ns)
+  File "<ipython-input-13-4e788b1e0c5a>", line 1, in <module>
+    np.array_equal([1, 2, 3] * u.mm, [1, 2, 3] * u.s)
+  File "<__array_function__ internals>", line 180, in array_equal
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity.py", line 1844, in __array_function__
+    args, kwargs, unit, out = function_helper(*args, **kwargs)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity_helper\function_helpers.py", line 566, in array_equal
+    args, unit = _quantities2arrays(a1, a2)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity_helper\function_helpers.py", line 351, in _quantities2arrays
+    arrays = tuple((q._to_own_unit(arg)) for arg in args)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity_helper\function_helpers.py", line 351, in <genexpr>
+    arrays = tuple((q._to_own_unit(arg)) for arg in args)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity.py", line 1652, in _to_own_unit
+    _value = value.to_value(unit)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity.py", line 983, in to_value
+    value = self._to_value(unit, equivalencies)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\quantity.py", line 889, in _to_value
+    return self.unit.to(
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\core.py", line 1165, in to
+    return self._get_converter(Unit(other), equivalencies)(value)
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\core.py", line 1094, in _get_converter
+    raise exc
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\core.py", line 1077, in _get_converter
+    return self._apply_equivalencies(
+  File "C:\Users\royts\Kankelborg-Group\astropy\astropy\units\core.py", line 1054, in _apply_equivalencies
+    raise UnitConversionError(f"{unit_str} and {other_str} are not convertible")
+astropy.units.core.UnitConversionError: 's' (time) and 'mm' (length) are not convertible
+```
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+```
+Windows-10-10.0.19045-SP0
+Python 3.10.8 (tags/v3.10.8:aaaf517, Oct 11 2022, 16:50:30) [MSC v.1933 64 bit (AMD64)]
+Numpy 1.23.5
+pyerfa 2.0.0.1
+astropy 5.3.dev89+g4989e530b
+Scipy 1.9.1
+Matplotlib 3.6.0
+```
+
+### Patch that fixed it
+
+diff --git a/astropy/units/quantity_helper/function_helpers.py b/astropy/units/quantity_helper/function_helpers.py
+--- a/astropy/units/quantity_helper/function_helpers.py
++++ b/astropy/units/quantity_helper/function_helpers.py
+@@ -40,7 +40,12 @@
+ import numpy as np
+ from numpy.lib import recfunctions as rfn
+ 
+-from astropy.units.core import UnitsError, UnitTypeError, dimensionless_unscaled
++from astropy.units.core import (
++    UnitConversionError,
++    UnitsError,
++    UnitTypeError,
++    dimensionless_unscaled,
++)
+ from astropy.utils import isiterable
+ from astropy.utils.compat import NUMPY_LT_1_23
+ 
+@@ -561,16 +566,22 @@ def close(a, b, rtol=1e-05, atol=1e-08, *args, **kwargs):
+     return (a, b, rtol, atol) + args, kwargs, None, None
+ 
+ 
+-@function_helper
++@dispatched_function
+ def array_equal(a1, a2, equal_nan=False):
+-    args, unit = _quantities2arrays(a1, a2)
+-    return args, dict(equal_nan=equal_nan), None, None
++    try:
++        args, unit = _quantities2arrays(a1, a2)
++    except UnitConversionError:
++        return False, None, None
++    return np.array_equal(*args, equal_nan=equal_nan), None, None
+ 
+ 
+-@function_helper
++@dispatched_function
+ def array_equiv(a1, a2):
+-    args, unit = _quantities2arrays(a1, a2)
+-    return args, {}, None, None
++    try:
++        args, unit = _quantities2arrays(a1, a2)
++    except UnitConversionError:
++        return False, None, None
++    return np.array_equiv(*args), None, None
+ 
+ 
+ @function_helper(helps={np.dot, np.outer})
+
+## Example 3 — astropy__astropy-7606
+
+### Issue
+
+Unit equality comparison with None raises TypeError for UnrecognizedUnit
+```
+In [12]: x = u.Unit('asdf', parse_strict='silent')
+
+In [13]: x == None  # Should be False
+---------------------------------------------------------------------------
+TypeError                                 Traceback (most recent call last)
+<ipython-input-13-2486f2ccf928> in <module>()
+----> 1 x == None  # Should be False
+
+/Users/aldcroft/anaconda3/lib/python3.5/site-packages/astropy/units/core.py in __eq__(self, other)
+   1699 
+   1700     def __eq__(self, other):
+-> 1701         other = Unit(other, parse_strict='silent')
+   1702         return isinstance(other, UnrecognizedUnit) and self.name == other.name
+   1703 
+
+/Users/aldcroft/anaconda3/lib/python3.5/site-packages/astropy/units/core.py in __call__(self, s, represents, format, namespace, doc, parse_strict)
+   1808 
+   1809         elif s is None:
+-> 1810             raise TypeError("None is not a valid Unit")
+   1811 
+   1812         else:
+
+TypeError: None is not a valid Unit
+```
+
+### Patch that fixed it
+
+diff --git a/astropy/units/core.py b/astropy/units/core.py
+--- a/astropy/units/core.py
++++ b/astropy/units/core.py
+@@ -728,7 +728,7 @@ def __eq__(self, other):
+         try:
+             other = Unit(other, parse_strict='silent')
+         except (ValueError, UnitsError, TypeError):
+-            return False
++            return NotImplemented
+ 
+         # Other is Unit-like, but the test below requires it is a UnitBase
+         # instance; if it is not, give up (so that other can try).
+@@ -1710,8 +1710,12 @@ def _unrecognized_operator(self, *args, **kwargs):
+         _unrecognized_operator
+ 
+     def __eq__(self, other):
+-        other = Unit(other, parse_strict='silent')
+-        return isinstance(other, UnrecognizedUnit) and self.name == other.name
++        try:
++            other = Unit(other, parse_strict='silent')
++        except (ValueError, UnitsError, TypeError):
++            return NotImplemented
++
++        return isinstance(other, type(self)) and self.name == other.name
+ 
+     def __ne__(self, other):
+         return not (self == other)

@@ -1,0 +1,203 @@
+{
+  "instance_id": "astropy__astropy-13579",
+  "model_patch": "--- a/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n+++ b/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n@@ -246,14 +246,19 @@ class SlicedLowLevelWCS(BaseWCSWrapper):\n         world_arrays = tuple(map(np.asanyarray, world_arrays))\n         world_arrays_new = []\n         iworld_curr = -1\n+        dropped_world_arrays = None\n         for iworld in range(self._wcs.world_n_dim):\n             if iworld in self._world_keep:\n                 iworld_curr += 1\n                 world_arrays_new.append(world_arrays[iworld_curr])\n             else:\n-                world_arrays_new.append(1.)\n+                if dropped_world_arrays is None:\n+                    dropped_world_arrays = self._pixel_to_world_values_all(\n+                        *([0] * len(self._pixel_keep))\n+                    )\n+                world_arrays_new.append(dropped_world_arrays[iworld])\n \n         world_arrays_new = np.broadcast_arrays(*world_arrays_new)\n         pixel_arrays = list(self._wcs.world_to_pixel_values(*world_arrays_new))\n \n         for ipixel in range(self._wcs.pixel_n_dim):\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "codex-cli",
+      "content": "--- a/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n+++ b/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n@@ -246,13 +246,19 @@ class SlicedLowLevelWCS(BaseWCSWrapper):\n         world_arrays = tuple(map(np.asanyarray, world_arrays))\n         world_arrays_new = []\n         iworld_curr = -1\n+        dropped_world_arrays = None\n         for iworld in range(self._wcs.world_n_dim):\n             if iworld in self._world_keep:\n                 iworld_curr += 1\n                 world_arrays_new.append(world_arrays[iworld_curr])\n             else:\n-                world_arrays_new.append(1.)\n+                if dropped_world_arrays is None:\n+                    dropped_world_arrays = self._pixel_to_world_values_all(\n+                        *([0] * len(self._pixel_keep))\n+                    )\n+                world_arrays_new.append(dropped_world_arrays[iworld])\n \n         world_arrays_new = np.broadcast_arrays(*world_arrays_new)\n         pixel_arrays = list(self._wcs.world_to_pixel_values(*world_arrays_new))\n \n         for ipixel in range(self._wcs.pixel_n_dim):",
+      "events": [
+        {
+          "type": "thread.started",
+          "thread_id": "019eb4f1-ed06-70c2-b4f1-070b10c3a384"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_0",
+            "type": "agent_message",
+            "text": "I\u2019ll inspect the existing WCS API tests so the patch adds the regression coverage in the same style as this repository."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"rg -n \\\"SlicedLowLevelWCS|world_to_pixel_values|sliced\\\" astropy/wcs -g '*test*.py' -g '*.py'\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"rg -n \\\"SlicedLowLevelWCS|world_to_pixel_values|sliced\\\" astropy/wcs -g '*test*.py' -g '*.py'\"",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 127,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_2",
+            "type": "agent_message",
+            "text": "`rg` is not installed in this image, so I\u2019m falling back to `find` and `grep` for the same lookup."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/wcs -name '*test*.py' -print\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/wcs -name '*test*.py' -print\"",
+            "aggregated_output": "find: \u2018astropy/wcs\u2019: No such file or directory\n",
+            "exit_code": 1,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_4",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"grep -R -n \\\"SlicedLowLevelWCS\\\\|world_to_pixel_values\\\\|sliced\\\" astropy/wcs --include='*.py'\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_4",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"grep -R -n \\\"SlicedLowLevelWCS\\\\|world_to_pixel_values\\\\|sliced\\\" astropy/wcs --include='*.py'\"",
+            "aggregated_output": "grep: astropy/wcs: No such file or directory\n",
+            "exit_code": 2,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_5",
+            "type": "agent_message",
+            "text": "The provided path does not contain the repository tree at the expected relative location, so I\u2019m checking the workspace layout before going further."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls'",
+            "aggregated_output": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__fvk-v4__20260611-042702/scratch/astropy__astropy-13579\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 3 -type f | head -50'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 3 -type f | head -50'",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_8",
+            "type": "agent_message",
+            "text": "--- a/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n+++ b/astropy/wcs/wcsapi/wrappers/sliced_wcs.py\n@@ -246,13 +246,19 @@ class SlicedLowLevelWCS(BaseWCSWrapper):\n         world_arrays = tuple(map(np.asanyarray, world_arrays))\n         world_arrays_new = []\n         iworld_curr = -1\n+        dropped_world_arrays = None\n         for iworld in range(self._wcs.world_n_dim):\n             if iworld in self._world_keep:\n                 iworld_curr += 1\n                 world_arrays_new.append(world_arrays[iworld_curr])\n             else:\n-                world_arrays_new.append(1.)\n+                if dropped_world_arrays is None:\n+                    dropped_world_arrays = self._pixel_to_world_values_all(\n+                        *([0] * len(self._pixel_keep))\n+                    )\n+                world_arrays_new.append(dropped_world_arrays[iworld])\n \n         world_arrays_new = np.broadcast_arrays(*world_arrays_new)\n         pixel_arrays = list(self._wcs.world_to_pixel_values(*world_arrays_new))\n \n         for ipixel in range(self._wcs.pixel_n_dim):"
+          }
+        },
+        {
+          "type": "turn.completed",
+          "usage": {
+            "input_tokens": 160988,
+            "cached_input_tokens": 147328,
+            "output_tokens": 5767,
+            "reasoning_output_tokens": 4848
+          }
+        }
+      ],
+      "usage": {
+        "input_tokens": 160988,
+        "cached_input_tokens": 147328,
+        "output_tokens": 5767,
+        "reasoning_output_tokens": 4848,
+        "prompt_tokens": 160988,
+        "completion_tokens": 5767
+      },
+      "argv": [
+        "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "--color",
+        "never",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "-c",
+        "model_reasoning_effort=\"xhigh\"",
+        "-o",
+        "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__fvk-v4__20260611-042702/scratch/astropy__astropy-13579/last_message.txt",
+        "-"
+      ],
+      "returncode": 0,
+      "duration_s": 122.2
+    }
+  ],
+  "wall_s": 122.2,
+  "finished_at": "2026-06-11T04:32:16Z"
+}

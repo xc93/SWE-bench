@@ -1,0 +1,33 @@
+{
+  "run_id": "astropy10__codex-5.5-xhigh__fvk-v4__20260611-042702",
+  "arm": "fvk-v4",
+  "model_label": "codex-5.5-xhigh__fvk-v4",
+  "model": "codex-5.5",
+  "provider": "codex-cli",
+  "thinking": null,
+  "prompt_path": "prompts/fvk/v4.md",
+  "prompt_version": "v4",
+  "prompt_sha256": "e9d27c533914743eb24446e3eda3b815363cbf4f3bbddd80fd20752711b1e855",
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-12907",
+    "astropy__astropy-13033",
+    "astropy__astropy-13236",
+    "astropy__astropy-13398",
+    "astropy__astropy-13453",
+    "astropy__astropy-13579",
+    "astropy__astropy-13977",
+    "astropy__astropy-14096",
+    "astropy__astropy-14182",
+    "astropy__astropy-14309"
+  ],
+  "started_at": "2026-06-11T04:27:11Z",
+  "codex_bin": "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+  "codex_version": "codex-cli 0.137.0-alpha.4",
+  "codex_model": "gpt-5.5",
+  "reasoning_effort": "xhigh",
+  "finished_at": "2026-06-11T04:37:49Z",
+  "n_with_patch": 10,
+  "n_errors": 0
+}

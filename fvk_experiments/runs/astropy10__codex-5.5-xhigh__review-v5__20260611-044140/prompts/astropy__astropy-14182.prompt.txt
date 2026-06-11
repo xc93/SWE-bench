@@ -1,0 +1,328 @@
+<experiment_instructions>
+# Self-Review Directive (v5 — draft, review, regenerate)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue. Work in **three phases, in order, all inside this single response, fully automatically** — no questions, no waiting, no tool use: first draft a candidate fix, then review it carefully, then produce the final fix incorporating the review.
+
+## Required procedure — three phases, in order, fully automatic
+
+### Phase 1 — DRAFT the candidate solution `c`
+
+- Identify the code the issue implicates: the functions and control flow the fix will touch.
+- Write the candidate fix `c` — the change you would naively ship — as concrete patched code. Keep it minimal and focused on the issue.
+- Do **not** review yet, and do not polish: this draft exists precisely so the next phase can interrogate it.
+
+### Phase 2 — REVIEW the candidate `c` carefully
+
+Review `c` the way a meticulous senior maintainer would, against the issue's intent:
+
+- **Correctness**: does `c` actually fix the reported behavior? Trace the issue's reproduction input through the patched code step by step and state what now happens.
+- **Completeness**: walk the edge cases — empty, zero, negative, overflow, off-by-one — and every branch, early return, and error path of the changed code. Which does `c` handle, and which does it miss?
+- **Regressions**: what currently-working behavior could `c` break? Check the surrounding code and every caller or usage visible in the provided files.
+- **Intent fit**: does `c` solve what the issue actually asks, or a nearby easier problem? Re-read the issue and compare.
+- **Consistency**: is `c` consistent with the surrounding code's style, APIs, and conventions, with no unrelated changes mixed in?
+- **Record FINDINGS**: every problem as *evidence → why it matters → recommended change*. If `c` is correct as written, state that explicitly — a clean review is a valid finding.
+
+### Phase 3 — REGENERATE the final solution
+
+- Write the **final fix**, incorporating every Phase 2 finding. It may equal `c` only if the review produced no findings.
+- Re-check the final fix once against the recorded findings and the reproduction case; if a problem remains, revise and re-check — never emit a patch with a known unresolved finding.
+- Emit the final unified-diff patch. It must implement exactly the re-checked final fix — nothing more.
+
+## Discipline
+
+- Keep the review **proportionate**: focus on the code touched by the issue and its immediate dependencies, not the whole codebase.
+- Present all three phases visibly in your answer, in order, before the patch — unless the task instructions require patch-only output.
+- **Output format:** this directive governs methodology only. For the final answer's formatting — the patch format, any wrappers, and all output constraints — follow the task instructions in the user message exactly; they take precedence over anything here.
+
+</experiment_instructions>
+
+You will be provided with a partial code base and an issue statement explaining a problem to resolve.
+<issue>
+Please support header rows in RestructuredText output
+### Description
+
+It would be great if the following would work:
+
+```Python
+>>> from astropy.table import QTable
+>>> import astropy.units as u
+>>> import sys
+>>> tbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})
+>>> tbl.write(sys.stdout,  format="ascii.rst")
+===== ========
+ wave response
+===== ========
+350.0      0.7
+950.0      1.2
+===== ========
+>>> tbl.write(sys.stdout,  format="ascii.fixed_width", header_rows=["name", "unit"])
+|  wave | response |
+|    nm |       ct |
+| 350.0 |      0.7 |
+| 950.0 |      1.2 |
+>>> tbl.write(sys.stdout,  format="ascii.rst", header_rows=["name", "unit"])
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/usr/lib/python3/dist-packages/astropy/table/connect.py", line 129, in __call__
+    self.registry.write(instance, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/registry/core.py", line 369, in write
+    return writer(data, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/connect.py", line 26, in io_write
+    return write(table, filename, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/ui.py", line 856, in write
+    writer = get_writer(Writer=Writer, fast_writer=fast_writer, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/ui.py", line 800, in get_writer
+    writer = core._get_writer(Writer, fast_writer, **kwargs)
+  File "/usr/lib/python3/dist-packages/astropy/io/ascii/core.py", line 1719, in _get_writer
+    writer = Writer(**writer_kwargs)
+TypeError: RST.__init__() got an unexpected keyword argument 'header_rows'
+```
+
+
+### Additional context
+
+RestructuredText output is a great way to fill autogenerated documentation with content, so having this flexible makes the life easier `:-)`
+
+
+
+</issue>
+<code>
+[start of README.rst]
+1 =======
+2 Astropy
+3 =======
+4 
+5 .. container::
+6 
+7     |Actions Status| |CircleCI Status| |Coverage Status| |PyPI Status| |Documentation Status| |Pre-Commit| |isort Status| |Zenodo|
+8 
+9 The Astropy Project (http://astropy.org/) is a community effort to develop a
+10 single core package for Astronomy in Python and foster interoperability between
+11 Python astronomy packages. This repository contains the core package which is
+12 intended to contain much of the core functionality and some common tools needed
+13 for performing astronomy and astrophysics with Python.
+14 
+15 Releases are `registered on PyPI <https://pypi.org/project/astropy>`_,
+16 and development is occurring at the
+17 `project's GitHub page <http://github.com/astropy/astropy>`_.
+18 
+19 For installation instructions, see the `online documentation <https://docs.astropy.org/>`_
+20 or  `docs/install.rst <docs/install.rst>`_ in this source distribution.
+21 
+22 Contributing Code, Documentation, or Feedback
+23 ---------------------------------------------
+24 
+25 The Astropy Project is made both by and for its users, so we welcome and
+26 encourage contributions of many kinds. Our goal is to keep this a positive,
+27 inclusive, successful, and growing community by abiding with the
+28 `Astropy Community Code of Conduct <http://www.astropy.org/about.html#codeofconduct>`_.
+29 
+30 More detailed information on contributing to the project or submitting feedback
+31 can be found on the `contributions <http://www.astropy.org/contribute.html>`_
+32 page. A `summary of contribution guidelines <CONTRIBUTING.md>`_ can also be
+33 used as a quick reference when you are ready to start writing or validating
+34 code for submission.
+35 
+36 Supporting the Project
+37 ----------------------
+38 
+39 |NumFOCUS| |Donate|
+40 
+41 The Astropy Project is sponsored by NumFOCUS, a 501(c)(3) nonprofit in the
+42 United States. You can donate to the project by using the link above, and this
+43 donation will support our mission to promote sustainable, high-level code base
+44 for the astronomy community, open code development, educational materials, and
+45 reproducible scientific research.
+46 
+47 License
+48 -------
+49 
+50 Astropy is licensed under a 3-clause BSD style license - see the
+51 `LICENSE.rst <LICENSE.rst>`_ file.
+52 
+53 .. |Actions Status| image:: https://github.com/astropy/astropy/workflows/CI/badge.svg
+54     :target: https://github.com/astropy/astropy/actions
+55     :alt: Astropy's GitHub Actions CI Status
+56 
+57 .. |CircleCI Status| image::  https://img.shields.io/circleci/build/github/astropy/astropy/main?logo=circleci&label=CircleCI
+58     :target: https://circleci.com/gh/astropy/astropy
+59     :alt: Astropy's CircleCI Status
+60 
+61 .. |Coverage Status| image:: https://codecov.io/gh/astropy/astropy/branch/main/graph/badge.svg
+62     :target: https://codecov.io/gh/astropy/astropy
+63     :alt: Astropy's Coverage Status
+64 
+65 .. |PyPI Status| image:: https://img.shields.io/pypi/v/astropy.svg
+66     :target: https://pypi.org/project/astropy
+67     :alt: Astropy's PyPI Status
+68 
+69 .. |Zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4670728.svg
+70    :target: https://doi.org/10.5281/zenodo.4670728
+71    :alt: Zenodo DOI
+72 
+73 .. |Documentation Status| image:: https://img.shields.io/readthedocs/astropy/latest.svg?logo=read%20the%20docs&logoColor=white&label=Docs&version=stable
+74     :target: https://docs.astropy.org/en/stable/?badge=stable
+75     :alt: Documentation Status
+76 
+77 .. |Pre-Commit| image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
+78    :target: https://github.com/pre-commit/pre-commit
+79    :alt: pre-commit
+80 
+81 .. |isort Status| image:: https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336
+82     :target: https://pycqa.github.io/isort/
+83     :alt: isort Status
+84 
+85 .. |NumFOCUS| image:: https://img.shields.io/badge/powered%20by-NumFOCUS-orange.svg?style=flat&colorA=E1523D&colorB=007D8A
+86     :target: http://numfocus.org
+87     :alt: Powered by NumFOCUS
+88 
+89 .. |Donate| image:: https://img.shields.io/badge/Donate-to%20Astropy-brightgreen.svg
+90     :target: https://numfocus.salsalabs.org/donate-to-astropy/index.html
+91 
+92 
+93 If you locally cloned this repo before 7 Apr 2021
+94 -------------------------------------------------
+95 
+96 The primary branch for this repo has been transitioned from ``master`` to
+97 ``main``.  If you have a local clone of this repository and want to keep your
+98 local branch in sync with this repo, you'll need to do the following in your
+99 local clone from your terminal::
+100 
+101    git fetch --all --prune
+102    # you can stop here if you don't use your local "master"/"main" branch
+103    git branch -m master main
+104    git branch -u origin/main main
+105 
+106 If you are using a GUI to manage your repos you'll have to find the equivalent
+107 commands as it's different for different programs. Alternatively, you can just
+108 delete your local clone and re-clone!
+109 
+[end of README.rst]
+[start of astropy/io/ascii/rst.py]
+1 # Licensed under a 3-clause BSD style license
+2 """
+3 :Author: Simon Gibbons (simongibbons@gmail.com)
+4 """
+5 
+6 
+7 from .core import DefaultSplitter
+8 from .fixedwidth import (
+9     FixedWidth,
+10     FixedWidthData,
+11     FixedWidthHeader,
+12     FixedWidthTwoLineDataSplitter,
+13 )
+14 
+15 
+16 class SimpleRSTHeader(FixedWidthHeader):
+17     position_line = 0
+18     start_line = 1
+19     splitter_class = DefaultSplitter
+20     position_char = "="
+21 
+22     def get_fixedwidth_params(self, line):
+23         vals, starts, ends = super().get_fixedwidth_params(line)
+24         # The right hand column can be unbounded
+25         ends[-1] = None
+26         return vals, starts, ends
+27 
+28 
+29 class SimpleRSTData(FixedWidthData):
+30     start_line = 3
+31     end_line = -1
+32     splitter_class = FixedWidthTwoLineDataSplitter
+33 
+34 
+35 class RST(FixedWidth):
+36     """reStructuredText simple format table.
+37 
+38     See: https://docutils.sourceforge.io/docs/ref/rst/restructuredtext.html#simple-tables
+39 
+40     Example::
+41 
+42         ==== ===== ======
+43         Col1  Col2  Col3
+44         ==== ===== ======
+45           1    2.3  Hello
+46           2    4.5  Worlds
+47         ==== ===== ======
+48 
+49     Currently there is no support for reading tables which utilize continuation lines,
+50     or for ones which define column spans through the use of an additional
+51     line of dashes in the header.
+52 
+53     """
+54 
+55     _format_name = "rst"
+56     _description = "reStructuredText simple table"
+57     data_class = SimpleRSTData
+58     header_class = SimpleRSTHeader
+59 
+60     def __init__(self):
+61         super().__init__(delimiter_pad=None, bookend=False)
+62 
+63     def write(self, lines):
+64         lines = super().write(lines)
+65         lines = [lines[1]] + lines + [lines[1]]
+66         return lines
+67 
+[end of astropy/io/ascii/rst.py]
+</code>
+I need you to solve this issue by generating a single patch file that I can apply directly to this repository using git apply. Please respond with a single patch file in the following format.
+<patch>
+--- a/file.py
++++ b/file.py
+@@ -1,27 +1,35 @@
+ def euclidean(a, b):
+-    while b:
+-        a, b = b, a % b
+-    return a
++    if b == 0:
++        return a
++    return euclidean(b, a % b)
+ 
+ 
+ def bresenham(x0, y0, x1, y1):
+     points = []
+     dx = abs(x1 - x0)
+     dy = abs(y1 - y0)
+-    sx = 1 if x0 < x1 else -1
+-    sy = 1 if y0 < y1 else -1
+-    err = dx - dy
++    x, y = x0, y0
++    sx = -1 if x0 > x1 else 1
++    sy = -1 if y0 > y1 else 1
+ 
+-    while True:
+-        points.append((x0, y0))
+-        if x0 == x1 and y0 == y1:
+-            break
+-        e2 = 2 * err
+-        if e2 > -dy:
++    if dx > dy:
++        err = dx / 2.0
++        while x != x1:
++            points.append((x, y))
+             err -= dy
+-            x0 += sx
+-        if e2 < dx:
+-            err += dx
+-            y0 += sy
++            if err < 0:
++                y += sy
++                err += dx
++            x += sx
++    else:
++        err = dy / 2.0
++        while y != y1:
++            points.append((x, y))
++            err -= dx
++            if err < 0:
++                x += sx
++                err += dy
++            y += sy
+ 
++    points.append((x, y))
+     return points
+</patch>
+

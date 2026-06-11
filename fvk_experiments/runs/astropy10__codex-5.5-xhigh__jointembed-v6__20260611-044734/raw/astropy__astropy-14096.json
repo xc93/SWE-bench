@@ -1,0 +1,249 @@
+{
+  "instance_id": "astropy__astropy-14096",
+  "model_patch": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ def __getattr__(self, attr):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If a class-level descriptor, like a property, raises AttributeError,\n+        # Python falls through to __getattr__ with the descriptor's name.  Retry\n+        # normal attribute access so the descriptor's own AttributeError is not\n+        # replaced with the SkyCoord dynamic attribute message.\n+        for cls in self.__class__.__mro__:\n+            if attr in cls.__dict__:\n+                return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "codex-cli",
+      "content": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ def __getattr__(self, attr):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If a class-level descriptor, like a property, raises AttributeError,\n+        # Python falls through to __getattr__ with the descriptor's name.  Retry\n+        # normal attribute access so the descriptor's own AttributeError is not\n+        # replaced with the SkyCoord dynamic attribute message.\n+        for cls in self.__class__.__mro__:\n+            if attr in cls.__dict__:\n+                return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?",
+      "events": [
+        {
+          "type": "thread.started",
+          "thread_id": "019eb50b-c15f-7b40-ad6b-f681dd352e22"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_0",
+            "type": "agent_message",
+            "text": "I\u2019m narrowing this to `SkyCoord.__getattr__`. The subclass property exists, but because its getter raises `AttributeError`, Python falls through to `__getattr__` for the property name and the current fallback message masks the real missing attribute."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"rg -n \\\"__getattr__|SkyCoord\\\" astropy/coordinates/tests astropy/coordinates -g '*test*.py' | head -80\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"rg -n \\\"__getattr__|SkyCoord\\\" astropy/coordinates/tests astropy/coordinates -g '*test*.py' | head -80\"",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_2",
+            "type": "agent_message",
+            "text": "`rg` isn\u2019t available in this environment, so I\u2019m falling back to basic shell search. I\u2019m checking the existing coordinate tests so the patch follows the local test style if tests are present."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/coordinates -path '*test*.py' -type f | head -60\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/coordinates -path '*test*.py' -type f | head -60\"",
+            "aggregated_output": "find: \u2018astropy/coordinates\u2019: No such file or directory\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_4",
+            "type": "agent_message",
+            "text": "The provided source is enough for the fix, but the local checkout here appears trimmed differently than the issue payload. I\u2019m checking the workspace layout before deciding whether a test file can be included cleanly."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls'",
+            "aggregated_output": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__jointembed-v6__20260611-044734/scratch/astropy__astropy-14096\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport sys\nclass A:\n    @property\n    def prop(self):\n        return self.random_attr\n    def __getattr__(self, attr):\n        print('__getattr__', attr, 'exc_info=', sys.exc_info()[1])\n        raise AttributeError(f\\\"no {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport sys\nclass A:\n    @property\n    def prop(self):\n        return self.random_attr\n    def __getattr__(self, attr):\n        print('__getattr__', attr, 'exc_info=', sys.exc_info()[1])\n        raise AttributeError(f\\\"no {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "__getattr__ random_attr exc_info= None\n__getattr__ prop exc_info= None\nTraceback (most recent call last):\n  File \"<stdin>\", line 10, in <module>\n  File \"<stdin>\", line 8, in __getattr__\nAttributeError: no prop\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_7",
+            "type": "agent_message",
+            "text": "The key behavior is confirmed: by the time `__getattr__` sees the property name, Python has discarded the original exception context. The fix needs to recognize descriptors already defined on the `SkyCoord` subclass and let their own `AttributeError` propagate instead of replacing it."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_8",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    @property\n    def prop(self):\n        return self.random_attr\n    def __getattr__(self, attr):\n        print('__getattr__', attr)\n        if attr == 'prop':\n            return super().__getattribute__(attr)\n        raise AttributeError(f\\\"no {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_8",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    @property\n    def prop(self):\n        return self.random_attr\n    def __getattr__(self, attr):\n        print('__getattr__', attr)\n        if attr == 'prop':\n            return super().__getattribute__(attr)\n        raise AttributeError(f\\\"no {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 11, in <module>\n  File \"<stdin>\", line 8, in __getattr__\n  File \"<stdin>\", line 4, in prop\n  File \"<stdin>\", line 9, in __getattr__\nAttributeError: no random_attr\n__getattr__ random_attr\n__getattr__ prop\n__getattr__ random_attr\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_9",
+            "type": "agent_message",
+            "text": "One subtlety here is preserving subclass precedence. The candidate patch checks the class MRO without invoking descriptors, then explicitly retries normal attribute access so a subclass property can report its own failure."
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_10",
+            "type": "agent_message",
+            "text": "The previous probe used a mistyped working directory. I\u2019m rerunning that tiny check against the correct directory; it does not touch files."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    def __getattr__(self, attr):\n        print('getattr', attr)\n        for cls in self.__class__.__mro__:\n            if attr in cls.__dict__:\n                return super().__getattribute__(attr)\n        raise AttributeError(f\\\"no {attr}\\\")\nclass B(A):\n    @property\n    def prop(self):\n        return self.random_attr\ntry:\n    B().prop\nexcept Exception:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    def __getattr__(self, attr):\n        print('getattr', attr)\n        for cls in self.__class__.__mro__:\n            if attr in cls.__dict__:\n                return super().__getattribute__(attr)\n        raise AttributeError(f\\\"no {attr}\\\")\nclass B(A):\n    @property\n    def prop(self):\n        return self.random_attr\ntry:\n    B().prop\nexcept Exception:\n    import traceback; traceback.print_exc()\nPY\"",
+            "aggregated_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 13, in <module>\n  File \"<stdin>\", line 6, in __getattr__\n  File \"<stdin>\", line 11, in prop\n  File \"<stdin>\", line 7, in __getattr__\nAttributeError: no random_attr\ngetattr random_attr\ngetattr prop\ngetattr random_attr\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_12",
+            "type": "agent_message",
+            "text": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ def __getattr__(self, attr):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If a class-level descriptor, like a property, raises AttributeError,\n+        # Python falls through to __getattr__ with the descriptor's name.  Retry\n+        # normal attribute access so the descriptor's own AttributeError is not\n+        # replaced with the SkyCoord dynamic attribute message.\n+        for cls in self.__class__.__mro__:\n+            if attr in cls.__dict__:\n+                return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?"
+          }
+        },
+        {
+          "type": "turn.completed",
+          "usage": {
+            "input_tokens": 433059,
+            "cached_input_tokens": 363520,
+            "output_tokens": 6608,
+            "reasoning_output_tokens": 4954
+          }
+        }
+      ],
+      "usage": {
+        "input_tokens": 433059,
+        "cached_input_tokens": 363520,
+        "output_tokens": 6608,
+        "reasoning_output_tokens": 4954,
+        "prompt_tokens": 433059,
+        "completion_tokens": 6608
+      },
+      "argv": [
+        "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "--color",
+        "never",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "-c",
+        "model_reasoning_effort=\"xhigh\"",
+        "-o",
+        "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__jointembed-v6__20260611-044734/scratch/astropy__astropy-14096/last_message.txt",
+        "-"
+      ],
+      "returncode": 0,
+      "duration_s": 139.9
+    }
+  ],
+  "wall_s": 139.9,
+  "finished_at": "2026-06-11T05:00:46Z"
+}

@@ -1,0 +1,563 @@
+{
+  "instance_id": "astropy__astropy-13453",
+  "model_patch": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,12 +348,14 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n+        self.data.cols = cols\n         self.data.header.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "codex-cli",
+      "content": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,12 +348,14 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n+        self.data.cols = cols\n         self.data.header.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())",
+      "events": [
+        {
+          "type": "thread.started",
+          "thread_id": "019eb504-be84-77a3-bace-fa7ab34c1734"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_0",
+            "type": "agent_message",
+            "text": "I\u2019ll trace how `formats` is applied for other ASCII writers and compare that with the HTML writer path, then produce a minimal diff."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,260p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,260p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "sed: can't read astropy/io/ascii/core.py: No such file or directory\n",
+            "exit_code": 2,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"formats|iter_str_vals|str_vals|class .*Data|def write\" astropy/io/ascii astropy/table | head -200'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"formats|iter_str_vals|str_vals|class .*Data|def write\" astropy/io/ascii astropy/table | head -200'",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '900,1220p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '900,1220p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "sed: can't read astropy/io/ascii/core.py: No such file or directory\n",
+            "exit_code": 2,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_4",
+            "type": "agent_message",
+            "text": "The initial paths did not resolve in the current sandbox view, so I\u2019m checking the repository layout first and then I\u2019ll read the relevant modules from their actual location."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc pwd",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc pwd",
+            "aggregated_output": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__jointembed-v6__20260611-044734/scratch/astropy__astropy-13453\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type d | head -50'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type d | head -50'",
+            "aggregated_output": ".\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 3 -type f -name 'core.py' | head -50\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 3 -type f -name 'core.py' | head -50\"",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_8",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 4 -type f -path '*io*ascii*html.py' -o -name 'html.py' | head -50\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_8",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 4 -type f -path '*io*ascii*html.py' -o -name 'html.py' | head -50\"",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_9",
+            "type": "agent_message",
+            "text": "The workspace only contains the supplied excerpt, so I\u2019m using the installed source as a reference for the surrounding writer machinery. This is read-only inspection to ensure the patch matches Astropy\u2019s existing formatting path."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport astropy, inspect, astropy.io.ascii.core as core\nprint(astropy.__file__)\nprint(inspect.getsourcefile(core))\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport astropy, inspect, astropy.io.ascii.core as core\nprint(astropy.__file__)\nprint(inspect.getsourcefile(core))\nPY\"",
+            "aggregated_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\nModuleNotFoundError: No module named 'astropy'\n",
+            "exit_code": 1,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport inspect\nimport astropy.io.ascii.core as core\nfor name in ['BaseReader','BaseData']:\n    obj=getattr(core,name)\n    print('###', name)\n    src=inspect.getsource(obj)\n    lines=src.splitlines()\n    for i,line in enumerate(lines,1):\n        if 'format' in line or 'iter_str_vals' in line or 'str_vals' in line or 'write' in line:\n            lo=max(1,i-5); hi=min(len(lines),i+8)\n            print('\\\\n'.join(f'{j}: {lines[j-1]}' for j in range(lo,hi+1)))\n            print('---')\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport inspect\nimport astropy.io.ascii.core as core\nfor name in ['BaseReader','BaseData']:\n    obj=getattr(core,name)\n    print('###', name)\n    src=inspect.getsource(obj)\n    lines=src.splitlines()\n    for i,line in enumerate(lines,1):\n        if 'format' in line or 'iter_str_vals' in line or 'str_vals' in line or 'write' in line:\n            lo=max(1,i-5); hi=min(len(lines),i+8)\n            print('\\\\n'.join(f'{j}: {lines[j-1]}' for j in range(lo,hi+1)))\n            print('---')\nPY\"",
+            "aggregated_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 2, in <module>\nModuleNotFoundError: No module named 'astropy'\n",
+            "exit_code": 1,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_12",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport inspect\nimport astropy.io.ascii.ui as ui\nsrc=inspect.getsource(ui.write)\nfor i,line in enumerate(src.splitlines(),1):\n    if 'format' in line or 'formats' in line or 'Writer' in line or 'writer' in line:\n        lo=max(1,i-6); hi=min(len(src.splitlines()),i+10)\n        print('\\\\n'.join(f'{j}: {src.splitlines()[j-1]}' for j in range(lo,hi+1)))\n        print('---')\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_12",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport inspect\nimport astropy.io.ascii.ui as ui\nsrc=inspect.getsource(ui.write)\nfor i,line in enumerate(src.splitlines(),1):\n    if 'format' in line or 'formats' in line or 'Writer' in line or 'writer' in line:\n        lo=max(1,i-6); hi=min(len(src.splitlines()),i+10)\n        print('\\\\n'.join(f'{j}: {src.splitlines()[j-1]}' for j in range(lo,hi+1)))\n        print('---')\nPY\"",
+            "aggregated_output": "Traceback (most recent call last):\n  File \"<stdin>\", line 2, in <module>\nModuleNotFoundError: No module named 'astropy'\n",
+            "exit_code": 1,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3ee51a24819a8ac7bdd1cb2e661c",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3ee51a24819a8ac7bdd1cb2e661c",
+            "type": "web_search",
+            "query": "astropy io ascii core.py BaseData formats iter_str_vals",
+            "action": {
+              "type": "search",
+              "query": "astropy io ascii core.py BaseData formats iter_str_vals",
+              "queries": [
+                "astropy io ascii core.py BaseData formats iter_str_vals"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3ee7114c819abb0ba61c10dd227f",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3ee7114c819abb0ba61c10dd227f",
+            "type": "web_search",
+            "query": "github astropy astropy io ascii core.py BaseData str_vals formats",
+            "action": {
+              "type": "search",
+              "query": "github astropy astropy io ascii core.py BaseData str_vals formats",
+              "queries": [
+                "github astropy astropy io ascii core.py BaseData str_vals formats"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3eeaecb0819aa22d2a01e3abfdc4",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3eeaecb0819aa22d2a01e3abfdc4",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/core.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f048544819a8631a2938b18f98c",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f048544819a8631a2938b18f98c",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f07d490819aa9125c341d710285",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f07d490819aa9125c341d710285",
+            "type": "web_search",
+            "query": "'_set_col_formats' in https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f0b0bb8819a9ef3704102ed8f92",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f0b0bb8819a9ef3704102ed8f92",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_19",
+            "type": "agent_message",
+            "text": "The core writer uses `BaseData._set_col_formats()` just before `iter_str_vals()`. The HTML writer bypasses that path, so the fix is to apply the same format setup before it builds `<td>` values and to carry that format onto split 2-D columns."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_20",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"curl -L --max-time 10 https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py | sed -n '330,470p'\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_20",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"curl -L --max-time 10 https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py | sed -n '330,470p'\"",
+            "aggregated_output": "  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0curl: (6) Could not resolve host: raw.githubusercontent.com\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f17c39c819aad5c85ac99504f44",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f17c39c819aad5c85ac99504f44",
+            "type": "web_search",
+            "query": "astropy 13453 HTML formats ascii html.py _set_col_formats",
+            "action": {
+              "type": "search",
+              "query": "astropy 13453 HTML formats ascii html.py _set_col_formats",
+              "queries": [
+                "astropy 13453 HTML formats ascii html.py _set_col_formats"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f19da90819ab69eff6886cdd4b4",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f19da90819ab69eff6886cdd4b4",
+            "type": "web_search",
+            "query": "\"ASCII table output to HTML\" \"formats\" astropy",
+            "action": {
+              "type": "search",
+              "query": "\"ASCII table output to HTML\" \"formats\" astropy",
+              "queries": [
+                "\"ASCII table output to HTML\" \"formats\" astropy"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f45ba74819a96e301319341203f",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0f36f7c27dee502f016a2a3f45ba74819a96e301319341203f",
+            "type": "web_search",
+            "query": "\"_set_col_formats\" \"HTML\" \"astropy\"",
+            "action": {
+              "type": "search",
+              "query": "\"_set_col_formats\" \"HTML\" \"astropy\"",
+              "queries": [
+                "\"_set_col_formats\" \"HTML\" \"astropy\"",
+                "\"new_col.info.format\" \"astropy\" \"html.py\"",
+                "\"formats\" \"raw_html_cols\" \"new_col.info.iter_str_vals\""
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_24",
+            "type": "agent_message",
+            "text": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,12 +348,14 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n+        self.data.cols = cols\n         self.data.header.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())"
+          }
+        },
+        {
+          "type": "turn.completed",
+          "usage": {
+            "input_tokens": 221721,
+            "cached_input_tokens": 115584,
+            "output_tokens": 7924,
+            "reasoning_output_tokens": 6116
+          }
+        }
+      ],
+      "usage": {
+        "input_tokens": 221721,
+        "cached_input_tokens": 115584,
+        "output_tokens": 7924,
+        "reasoning_output_tokens": 6116,
+        "prompt_tokens": 221721,
+        "completion_tokens": 7924
+      },
+      "argv": [
+        "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "--color",
+        "never",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "-c",
+        "model_reasoning_effort=\"xhigh\"",
+        "-o",
+        "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__jointembed-v6__20260611-044734/scratch/astropy__astropy-13453/last_message.txt",
+        "-"
+      ],
+      "returncode": 0,
+      "duration_s": 175.5
+    }
+  ],
+  "wall_s": 175.5,
+  "finished_at": "2026-06-11T04:53:42Z"
+}

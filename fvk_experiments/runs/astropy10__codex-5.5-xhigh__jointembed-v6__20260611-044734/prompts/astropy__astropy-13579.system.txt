@@ -1,0 +1,869 @@
+# Demonstration-Guided Repair Directive (v6 — jointembed)
+
+You are repairing a GitHub issue. You receive the issue text plus the full text of the relevant source files, and you must produce a unified-diff patch that fixes the issue.
+
+Below this directive you will find several **solved examples**: real issues from the same codebase that are semantically similar to the task, each paired with the exact patch that fixed it. Use them the way a retrieval system intends:
+
+- **Study each example's issue → patch mapping first**: which subsystem it touches, where the root cause sat relative to the symptom, how small the fix is, how the maintainers shaped it (guard clause vs. parameter propagation vs. dtype/rounding handling vs. serialization fix), and what the patch deliberately did *not* touch.
+- **Transfer patterns, not text.** The examples are different problems: never copy their patches, their line numbers, or their file choices blindly. What transfers is the diagnostic approach and the fix *shape*.
+- Note conventions the examples reveal about this codebase: API style, error-handling habits, how public behavior is preserved, typical patch size.
+- Then solve the new issue: locate the root cause in the provided files, apply the most fitting pattern, and keep the fix as focused as the example patches are.
+
+Constraints:
+
+- The examples are background material. **Your final answer must contain only your own patch for the new issue** — never reproduce or quote the example patches in it.
+- **Output format:** the task instructions in the user message govern the final answer's formatting — the patch format, any wrappers, and all output constraints. They take precedence over anything here.
+
+
+# Solved examples from the same codebase
+
+The following are real, already-fixed issues semantically similar to the task you will receive, each with the exact patch that fixed it. Study how each issue maps to its patch before solving the new issue.
+
+## Example 1 — astropy__astropy-11693
+
+### Issue
+
+'WCS.all_world2pix' failed to converge when plotting WCS with non linear distortions
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/master/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/master/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+When trying to plot an image with a WCS as projection that contains non linear Distortions it fails with a `NoConvergence` error.
+
+### Expected behavior
+When I add `quiet=True` as parameter to the call 
+```pixel = self.all_world2pix(*world_arrays, 0)``` 
+at line 326 of `astropy/wcs/wcsapi/fitswcs.py` I get the good enough looking plot below:
+
+![bugreport](https://user-images.githubusercontent.com/64231/112940287-37c2c800-912d-11eb-8ce8-56fd284bb8e7.png)
+
+It would be nice if there was a way of getting that plot without having to hack the library code like that.
+### Actual behavior
+<!-- What actually happened. -->
+<!-- Was the output confusing or poorly described? -->
+The call to plotting the grid fails with the following error (last few lines, can provide more if necessary):
+
+```
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcsapi/fitswcs.py in world_to_pixel_values(self, *world_arrays)
+    324 
+    325     def world_to_pixel_values(self, *world_arrays):
+--> 326         pixel = self.all_world2pix(*world_arrays, 0)
+    327         return pixel[0] if self.pixel_n_dim == 1 else tuple(pixel)
+    328 
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/utils/decorators.py in wrapper(*args, **kwargs)
+    534                     warnings.warn(message, warning_type, stacklevel=2)
+    535 
+--> 536             return function(*args, **kwargs)
+    537 
+    538         return wrapper
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in all_world2pix(self, tolerance, maxiter, adaptive, detect_divergence, quiet, *args, **kwargs)
+   1886             raise ValueError("No basic WCS settings were created.")
+   1887 
+-> 1888         return self._array_converter(
+   1889             lambda *args, **kwargs:
+   1890             self._all_world2pix(
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _array_converter(self, func, sky, ra_dec_order, *args)
+   1335                     "a 1-D array for each axis, followed by an origin.")
+   1336 
+-> 1337             return _return_list_of_arrays(axes, origin)
+   1338 
+   1339         raise TypeError(
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _return_list_of_arrays(axes, origin)
+   1289             if ra_dec_order and sky == 'input':
+   1290                 xy = self._denormalize_sky(xy)
+-> 1291             output = func(xy, origin)
+   1292             if ra_dec_order and sky == 'output':
+   1293                 output = self._normalize_sky(output)
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in <lambda>(*args, **kwargs)
+   1888         return self._array_converter(
+   1889             lambda *args, **kwargs:
+-> 1890             self._all_world2pix(
+   1891                 *args, tolerance=tolerance, maxiter=maxiter,
+   1892                 adaptive=adaptive, detect_divergence=detect_divergence,
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _all_world2pix(self, world, origin, tolerance, maxiter, adaptive, detect_divergence, quiet)
+   1869                     slow_conv=ind, divergent=None)
+   1870             else:
+-> 1871                 raise NoConvergence(
+   1872                     "'WCS.all_world2pix' failed to "
+   1873                     "converge to the requested accuracy.\n"
+
+NoConvergence: 'WCS.all_world2pix' failed to converge to the requested accuracy.
+After 20 iterations, the solution is diverging at least for one input point.
+```
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+Here is the code to reproduce the problem:
+```
+from astropy.wcs import WCS, Sip
+import numpy as np
+import matplotlib.pyplot as plt
+
+wcs = WCS(naxis=2)
+a = [[ 0.00000000e+00,  0.00000000e+00,  6.77532513e-07,
+        -1.76632141e-10],
+       [ 0.00000000e+00,  9.49130161e-06, -1.50614321e-07,
+         0.00000000e+00],
+       [ 7.37260409e-06,  2.07020239e-09,  0.00000000e+00,
+         0.00000000e+00],
+       [-1.20116753e-07,  0.00000000e+00,  0.00000000e+00,
+         0.00000000e+00]]
+b = [[ 0.00000000e+00,  0.00000000e+00,  1.34606617e-05,
+        -1.41919055e-07],
+       [ 0.00000000e+00,  5.85158316e-06, -1.10382462e-09,
+         0.00000000e+00],
+       [ 1.06306407e-05, -1.36469008e-07,  0.00000000e+00,
+         0.00000000e+00],
+       [ 3.27391123e-09,  0.00000000e+00,  0.00000000e+00,
+         0.00000000e+00]]
+crpix = [1221.87375165,  994.90917378]
+ap = bp = np.zeros((4, 4))
+
+wcs.sip = Sip(a, b, ap, bp, crpix)
+
+plt.subplot(projection=wcs)
+plt.imshow(np.zeros((1944, 2592)))
+plt.grid(color='white', ls='solid')
+```
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+```
+>>> import platform; print(platform.platform())
+Linux-5.11.10-arch1-1-x86_64-with-glibc2.33
+>>> import sys; print("Python", sys.version)
+Python 3.9.2 (default, Feb 20 2021, 18:40:11) 
+[GCC 10.2.0]
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.20.2
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 4.3.dev690+g7811614f8
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.6.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.3.4
+```
+'WCS.all_world2pix' failed to converge when plotting WCS with non linear distortions
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/master/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/master/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+When trying to plot an image with a WCS as projection that contains non linear Distortions it fails with a `NoConvergence` error.
+
+### Expected behavior
+When I add `quiet=True` as parameter to the call 
+```pixel = self.all_world2pix(*world_arrays, 0)``` 
+at line 326 of `astropy/wcs/wcsapi/fitswcs.py` I get the good enough looking plot below:
+
+![bugreport](https://user-images.githubusercontent.com/64231/112940287-37c2c800-912d-11eb-8ce8-56fd284bb8e7.png)
+
+It would be nice if there was a way of getting that plot without having to hack the library code like that.
+### Actual behavior
+<!-- What actually happened. -->
+<!-- Was the output confusing or poorly described? -->
+The call to plotting the grid fails with the following error (last few lines, can provide more if necessary):
+
+```
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcsapi/fitswcs.py in world_to_pixel_values(self, *world_arrays)
+    324 
+    325     def world_to_pixel_values(self, *world_arrays):
+--> 326         pixel = self.all_world2pix(*world_arrays, 0)
+    327         return pixel[0] if self.pixel_n_dim == 1 else tuple(pixel)
+    328 
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/utils/decorators.py in wrapper(*args, **kwargs)
+    534                     warnings.warn(message, warning_type, stacklevel=2)
+    535 
+--> 536             return function(*args, **kwargs)
+    537 
+    538         return wrapper
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in all_world2pix(self, tolerance, maxiter, adaptive, detect_divergence, quiet, *args, **kwargs)
+   1886             raise ValueError("No basic WCS settings were created.")
+   1887 
+-> 1888         return self._array_converter(
+   1889             lambda *args, **kwargs:
+   1890             self._all_world2pix(
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _array_converter(self, func, sky, ra_dec_order, *args)
+   1335                     "a 1-D array for each axis, followed by an origin.")
+   1336 
+-> 1337             return _return_list_of_arrays(axes, origin)
+   1338 
+   1339         raise TypeError(
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _return_list_of_arrays(axes, origin)
+   1289             if ra_dec_order and sky == 'input':
+   1290                 xy = self._denormalize_sky(xy)
+-> 1291             output = func(xy, origin)
+   1292             if ra_dec_order and sky == 'output':
+   1293                 output = self._normalize_sky(output)
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in <lambda>(*args, **kwargs)
+   1888         return self._array_converter(
+   1889             lambda *args, **kwargs:
+-> 1890             self._all_world2pix(
+   1891                 *args, tolerance=tolerance, maxiter=maxiter,
+   1892                 adaptive=adaptive, detect_divergence=detect_divergence,
+
+~/work/develop/env/lib/python3.9/site-packages/astropy/wcs/wcs.py in _all_world2pix(self, world, origin, tolerance, maxiter, adaptive, detect_divergence, quiet)
+   1869                     slow_conv=ind, divergent=None)
+   1870             else:
+-> 1871                 raise NoConvergence(
+   1872                     "'WCS.all_world2pix' failed to "
+   1873                     "converge to the requested accuracy.\n"
+
+NoConvergence: 'WCS.all_world2pix' failed to converge to the requested accuracy.
+After 20 iterations, the solution is diverging at least for one input point.
+```
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+Here is the code to reproduce the problem:
+```
+from astropy.wcs import WCS, Sip
+import numpy as np
+import matplotlib.pyplot as plt
+
+wcs = WCS(naxis=2)
+a = [[ 0.00000000e+00,  0.00000000e+00,  6.77532513e-07,
+        -1.76632141e-10],
+       [ 0.00000000e+00,  9.49130161e-06, -1.50614321e-07,
+         0.00000000e+00],
+       [ 7.37260409e-06,  2.07020239e-09,  0.00000000e+00,
+         0.00000000e+00],
+       [-1.20116753e-07,  0.00000000e+00,  0.00000000e+00,
+         0.00000000e+00]]
+b = [[ 0.00000000e+00,  0.00000000e+00,  1.34606617e-05,
+        -1.41919055e-07],
+       [ 0.00000000e+00,  5.85158316e-06, -1.10382462e-09,
+         0.00000000e+00],
+       [ 1.06306407e-05, -1.36469008e-07,  0.00000000e+00,
+         0.00000000e+00],
+       [ 3.27391123e-09,  0.00000000e+00,  0.00000000e+00,
+         0.00000000e+00]]
+crpix = [1221.87375165,  994.90917378]
+ap = bp = np.zeros((4, 4))
+
+wcs.sip = Sip(a, b, ap, bp, crpix)
+
+plt.subplot(projection=wcs)
+plt.imshow(np.zeros((1944, 2592)))
+plt.grid(color='white', ls='solid')
+```
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+```
+>>> import platform; print(platform.platform())
+Linux-5.11.10-arch1-1-x86_64-with-glibc2.33
+>>> import sys; print("Python", sys.version)
+Python 3.9.2 (default, Feb 20 2021, 18:40:11) 
+[GCC 10.2.0]
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.20.2
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 4.3.dev690+g7811614f8
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.6.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.3.4
+```
+
+### Patch that fixed it
+
+diff --git a/astropy/wcs/wcsapi/fitswcs.py b/astropy/wcs/wcsapi/fitswcs.py
+--- a/astropy/wcs/wcsapi/fitswcs.py
++++ b/astropy/wcs/wcsapi/fitswcs.py
+@@ -323,7 +323,17 @@ def pixel_to_world_values(self, *pixel_arrays):
+         return world[0] if self.world_n_dim == 1 else tuple(world)
+ 
+     def world_to_pixel_values(self, *world_arrays):
+-        pixel = self.all_world2pix(*world_arrays, 0)
++        # avoid circular import
++        from astropy.wcs.wcs import NoConvergence
++        try:
++            pixel = self.all_world2pix(*world_arrays, 0)
++        except NoConvergence as e:
++            warnings.warn(str(e))
++            # use best_solution contained in the exception and format the same
++            # way as all_world2pix does (using _array_converter)
++            pixel = self._array_converter(lambda *args: e.best_solution,
++                                         'input', *world_arrays, 0)
++
+         return pixel[0] if self.pixel_n_dim == 1 else tuple(pixel)
+ 
+     @property
+
+## Example 2 — astropy__astropy-14295
+
+### Issue
+
+Presence of SIP keywords leads to ignored PV keywords.
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+I am working on updating the fits header for one of our telescopes. We wanted to represent the distortions in SIP convention and the projection to be 'CAR'.
+While working on this, I noticed if SIP coefficients are present in the header and/or '-SIP' is added to CTYPEia keywords,
+astropy treats the PV keywords (PV1_0, PV1_1 and PV1_2) as "redundant SCAMP distortions".
+
+Earlier I could not figure out why the projection weren't going as I expected, and I suspected a bug in astropy wcs. After talking to Mark Calabretta about the difficulties I'm facing, that suspicion only grew stronger. The header was working as expected with WCSLIB but was giving unexpected behavior in astropy wcs.
+
+The following would be one example header - 
+```
+header_dict = {
+'SIMPLE'  : True, 
+'BITPIX'  : -32, 
+'NAXIS'   :  2,
+'NAXIS1'  : 1024,
+'NAXIS2'  : 1024,
+'CRPIX1'  : 512.0,
+'CRPIX2'  : 512.0,
+'CDELT1'  : 0.01,
+'CDELT2'  : 0.01,
+'CRVAL1'  : 120.0,
+'CRVAL2'  : 29.0,
+'CTYPE1'  : 'RA---CAR-SIP',
+'CTYPE2'  : 'DEC--CAR-SIP',
+'PV1_1'   :120.0,
+'PV1_2'   :29.0,
+'PV1_0'   :1.0,
+'A_ORDER' :2,
+'A_2_0'   :5.0e-4,
+'B_ORDER' :2,
+'B_2_0'   :5.0e-4
+}
+from astropy.io import fits
+header = fits.Header(header_dict)
+```
+
+### Expected behavior
+When you parse the wcs information from this header, the image should be centered at ra=120 and dec=29 with lines of constant ra and dec looking like the following image generated using wcslib - 
+![wcsgrid_with_PV](https://user-images.githubusercontent.com/97835976/210666592-62860f54-f97a-4114-81bb-b50712194337.png)
+
+### Actual behavior
+If I parse the wcs information using astropy wcs, it throws the following warning -
+`WARNING: FITSFixedWarning: Removed redundant SCAMP distortion parameters because SIP parameters are also present [astropy.wcs.wcs]`
+And the resulting grid is different.
+Code - 
+```
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.wcs import WCS
+w = WCS(header)
+ra = np.linspace(116, 126, 25)
+dec = np.linspace(25, 34, 25)
+
+for r in ra:
+    x, y = w.all_world2pix(np.full_like(dec, r), dec, 0)
+    plt.plot(x, y, 'C0')
+for d in dec:
+    x, y = w.all_world2pix(ra, np.full_like(ra, d), 0)
+    plt.plot(x, y, 'C0')
+
+plt.title('Lines of constant equatorial coordinates in pixel space')
+plt.xlabel('x')
+plt.ylabel('y')
+```
+Grid - 
+![image](https://user-images.githubusercontent.com/97835976/210667514-4d2a033b-3571-4df5-9646-42e4cbb51026.png)
+
+The astropy wcs grid/solution does not change whethere we keep or remove the PV keywords.
+Furthermore, the astropy grid can be recreated in wcslib, by removing the PV keywords.
+![wcsgrid_without_PV](https://user-images.githubusercontent.com/97835976/210667756-10336d93-1266-4ae6-ace1-27947746531c.png)
+
+
+### Steps to Reproduce
+<!-- Ideally a code example could be provided so we can run it ourselves. -->
+<!-- If you are pasting code, use triple backticks (```) around
+your code snippet. -->
+<!-- If necessary, sanitize your screen output to be pasted so you do not
+reveal secrets like tokens and passwords. -->
+
+1. Initialize the header
+2. Parse the header using astropy.wcs.WCS
+3. Plot the graticule
+4. Remove the PV keywords and run again
+5. You will find the same graticule indicating that PV keywords are completely ignored.
+6.  Additionally, the graticules can be compared with the wcsgrid utility of wcslib.
+
+
+### System Details
+<!-- Even if you do not think this is necessary, it is useful information for the maintainers.
+Please run the following snippet and paste the output below:
+import platform; print(platform.platform())
+import sys; print("Python", sys.version)
+import numpy; print("Numpy", numpy.__version__)
+import erfa; print("pyerfa", erfa.__version__)
+import astropy; print("astropy", astropy.__version__)
+import scipy; print("Scipy", scipy.__version__)
+import matplotlib; print("Matplotlib", matplotlib.__version__)
+-->
+Linux-6.0.11-200.fc36.x86_64-x86_64-with-glibc2.35
+Python 3.9.12 (main, Apr  5 2022, 06:56:58) 
+[GCC 7.5.0]
+Numpy 1.21.5
+pyerfa 2.0.0
+astropy 5.1
+Scipy 1.7.3
+Matplotlib 3.5.1
+Remove heuristic code to handle PTF files which is causing a bug
+<!-- This comments are hidden when you submit the pull request,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- If you are new or need to be re-acquainted with Astropy
+contributing workflow, please see
+http://docs.astropy.org/en/latest/development/workflow/development_workflow.html .
+There is even a practical example at
+https://docs.astropy.org/en/latest/development/workflow/git_edit_workflow_examples.html#astropy-fix-example . -->
+
+<!-- Astropy coding style guidelines can be found here:
+https://docs.astropy.org/en/latest/development/codeguide.html#coding-style-conventions
+Our testing infrastructure enforces to follow a subset of the PEP8 to be
+followed. You can check locally whether your changes have followed these by
+running the following command:
+
+tox -e codestyle
+
+-->
+
+<!-- Please just have a quick search on GitHub to see if a similar
+pull request has already been posted.
+We have old closed pull requests that might provide useful code or ideas
+that directly tie in with your pull request. -->
+
+<!-- We have several automatic features that run when a pull request is open.
+They can appear daunting but do not worry because maintainers will help
+you navigate them, if necessary. -->
+
+### Description
+<!-- Provide a general description of what your pull request does.
+Complete the following sentence and add relevant details as you see fit. -->
+
+<!-- In addition please ensure that the pull request title is descriptive
+and allows maintainers to infer the applicable subpackage(s). -->
+
+<!-- READ THIS FOR MANUAL BACKPORT FROM A MAINTAINER:
+Apply "skip-basebranch-check" label **before** you open the PR! -->
+
+Currently the `_fix_scamp` function remove any PV keywords when SIP distortions are present and no radial terms are present which should not  be the case. This function was put in place for solving https://github.com/astropy/astropy/issues/299 but it causes the bug #14255.
+
+We can either keep adding heuristic code to fix the edge cases as they come up with or remove `_fix_scamp` and let the user deal with non-standard files. I'm opening a pull request for the latter following the discusison in #14255.
+
+<!-- If the pull request closes any open issues you can add this.
+If you replace <Issue Number> with a number, GitHub will automatically link it.
+If this pull request is unrelated to any issues, please remove
+the following line. -->
+
+Fixes #14255
+
+### Checklist for package maintainer(s)
+<!-- This section is to be filled by package maintainer(s) who will
+review this pull request. -->
+
+This checklist is meant to remind the package maintainer(s) who will review this pull request of some common things to look for. This list is not exhaustive.
+
+- [ ] Do the proposed changes actually accomplish desired goals?
+- [ ] Do the proposed changes follow the [Astropy coding guidelines](https://docs.astropy.org/en/latest/development/codeguide.html)?
+- [ ] Are tests added/updated as required? If so, do they follow the [Astropy testing guidelines](https://docs.astropy.org/en/latest/development/testguide.html)?
+- [ ] Are docs added/updated as required? If so, do they follow the [Astropy documentation guidelines](https://docs.astropy.org/en/latest/development/docguide.html#astropy-documentation-rules-and-guidelines)?
+- [ ] Is rebase and/or squash necessary? If so, please provide the author with appropriate instructions. Also see ["When to rebase and squash commits"](https://docs.astropy.org/en/latest/development/when_to_rebase.html).
+- [ ] Did the CI pass? If no, are the failures related? If you need to run daily and weekly cron jobs as part of the PR, please apply the `Extra CI` label. Codestyle issues can be fixed by the [bot](https://docs.astropy.org/en/latest/development/workflow/development_workflow.html#pre-commit).
+- [ ] Is a change log needed? If yes, did the change log check pass? If no, add the `no-changelog-entry-needed` label. If this is a manual backport, use the `skip-changelog-checks` label unless special changelog handling is necessary.
+- [ ] Is this a big PR that makes a "What's new?" entry worthwhile and if so, is (1) a "what's new" entry included in this PR and (2) the "whatsnew-needed" label applied?
+- [ ] Is a milestone set? Milestone must be set but `astropy-bot` check might be missing; do not let the green checkmark fool you.
+- [ ] At the time of adding the milestone, if the milestone set requires a backport to release branch(es), apply the appropriate `backport-X.Y.x` label(s) *before* merge.
+
+### Patch that fixed it
+
+diff --git a/astropy/wcs/wcs.py b/astropy/wcs/wcs.py
+--- a/astropy/wcs/wcs.py
++++ b/astropy/wcs/wcs.py
+@@ -534,6 +534,8 @@ def __init__(
+ 
+             det2im = self._read_det2im_kw(header, fobj, err=minerr)
+             cpdis = self._read_distortion_kw(header, fobj, dist="CPDIS", err=minerr)
++            self._fix_pre2012_scamp_tpv(header)
++
+             sip = self._read_sip_kw(header, wcskey=key)
+             self._remove_sip_kw(header)
+ 
+@@ -714,12 +716,28 @@ def _fix_scamp(self):
+         SIP distortion parameters.
+ 
+         See https://github.com/astropy/astropy/issues/299.
++
++        SCAMP uses TAN projection exclusively. The case of CTYPE ending
++        in -TAN should have been handled by ``_fix_pre2012_scamp_tpv()`` before
++        calling this function.
+         """
+-        # Nothing to be done if no WCS attached
+         if self.wcs is None:
+             return
+ 
+-        # Nothing to be done if no PV parameters attached
++        # Delete SIP if CTYPE explicitly has '-TPV' code:
++        ctype = [ct.strip().upper() for ct in self.wcs.ctype]
++        if sum(ct.endswith("-TPV") for ct in ctype) == 2:
++            if self.sip is not None:
++                self.sip = None
++                warnings.warn(
++                    "Removed redundant SIP distortion parameters "
++                    + "because CTYPE explicitly specifies TPV distortions",
++                    FITSFixedWarning,
++                )
++            return
++
++        # Nothing to be done if no PV parameters attached since SCAMP
++        # encodes distortion coefficients using PV keywords
+         pv = self.wcs.get_pv()
+         if not pv:
+             return
+@@ -728,28 +746,28 @@ def _fix_scamp(self):
+         if self.sip is None:
+             return
+ 
+-        # Nothing to be done if any radial terms are present...
+-        # Loop over list to find any radial terms.
+-        # Certain values of the `j' index are used for storing
+-        # radial terms; refer to Equation (1) in
+-        # <http://web.ipac.caltech.edu/staff/shupe/reprints/SIP_to_PV_SPIE2012.pdf>.
+-        pv = np.asarray(pv)
+         # Loop over distinct values of `i' index
+-        for i in set(pv[:, 0]):
++        has_scamp = False
++        for i in {v[0] for v in pv}:
+             # Get all values of `j' index for this value of `i' index
+-            js = set(pv[:, 1][pv[:, 0] == i])
+-            # Find max value of `j' index
+-            max_j = max(js)
+-            for j in (3, 11, 23, 39):
+-                if j < max_j and j in js:
+-                    return
+-
+-        self.wcs.set_pv([])
+-        warnings.warn(
+-            "Removed redundant SCAMP distortion parameters "
+-            + "because SIP parameters are also present",
+-            FITSFixedWarning,
+-        )
++            js = tuple(v[1] for v in pv if v[0] == i)
++            if "-TAN" in self.wcs.ctype[i - 1].upper() and js and max(js) >= 5:
++                # TAN projection *may* use PVi_j with j up to 4 - see
++                # Sections 2.5, 2.6, and Table 13
++                # in https://doi.org/10.1051/0004-6361:20021327
++                has_scamp = True
++                break
++
++        if has_scamp and all(ct.endswith("-SIP") for ct in ctype):
++            # Prefer SIP - see recommendations in Section 7 in
++            # http://web.ipac.caltech.edu/staff/shupe/reprints/SIP_to_PV_SPIE2012.pdf
++            self.wcs.set_pv([])
++            warnings.warn(
++                "Removed redundant SCAMP distortion parameters "
++                + "because SIP parameters are also present",
++                FITSFixedWarning,
++            )
++            return
+ 
+     def fix(self, translate_units="", naxis=None):
+         """
+@@ -1175,7 +1193,64 @@ def write_dist(num, cpdis):
+         write_dist(1, self.cpdis1)
+         write_dist(2, self.cpdis2)
+ 
+-    def _remove_sip_kw(self, header):
++    def _fix_pre2012_scamp_tpv(self, header, wcskey=""):
++        """
++        Replace -TAN with TPV (for pre-2012 SCAMP headers that use -TAN
++        in CTYPE). Ignore SIP if present. This follows recommendations in
++        Section 7 in
++        http://web.ipac.caltech.edu/staff/shupe/reprints/SIP_to_PV_SPIE2012.pdf.
++
++        This is to deal with pre-2012 headers that may contain TPV with a
++        CTYPE that ends in '-TAN' (post-2012 they should end in '-TPV' when
++        SCAMP has adopted the new TPV convention).
++        """
++        if isinstance(header, (str, bytes)):
++            return
++
++        wcskey = wcskey.strip().upper()
++        cntype = [
++            (nax, header.get(f"CTYPE{nax}{wcskey}", "").strip())
++            for nax in range(1, self.naxis + 1)
++        ]
++
++        tan_axes = [ct[0] for ct in cntype if ct[1].endswith("-TAN")]
++
++        if len(tan_axes) == 2:
++            # check if PVi_j with j >= 5 is present and if so, do not load SIP
++            tan_to_tpv = False
++            for nax in tan_axes:
++                js = []
++                for p in header[f"PV{nax}_*{wcskey}"].keys():
++                    prefix = f"PV{nax}_"
++                    if p.startswith(prefix):
++                        p = p[len(prefix) :]
++                        p = p.rstrip(wcskey)
++                        try:
++                            p = int(p)
++                        except ValueError:
++                            continue
++                        js.append(p)
++
++                if js and max(js) >= 5:
++                    tan_to_tpv = True
++                    break
++
++            if tan_to_tpv:
++                warnings.warn(
++                    "Removed redundant SIP distortion parameters "
++                    + "because SCAMP' PV distortions are also present",
++                    FITSFixedWarning,
++                )
++                self._remove_sip_kw(header, del_order=True)
++                for i in tan_axes:
++                    kwd = f"CTYPE{i:d}{wcskey}"
++                    if kwd in header:
++                        header[kwd] = (
++                            header[kwd].strip().upper().replace("-TAN", "-TPV")
++                        )
++
++    @staticmethod
++    def _remove_sip_kw(header, del_order=False):
+         """
+         Remove SIP information from a header.
+         """
+@@ -1186,6 +1261,11 @@ def _remove_sip_kw(self, header):
+         }:
+             del header[key]
+ 
++        if del_order:
++            for kwd in ["A_ORDER", "B_ORDER", "AP_ORDER", "BP_ORDER"]:
++                if kwd in header:
++                    del header[kwd]
++
+     def _read_sip_kw(self, header, wcskey=""):
+         """
+         Reads `SIP`_ header keywords and returns a `~astropy.wcs.Sip`
+
+## Example 3 — astropy__astropy-13032
+
+### Issue
+
+Incorrect ignored usage in `ModelBoundingBox`
+<!-- This comments are hidden when you submit the issue,
+so you do not need to remove them! -->
+
+<!-- Please be sure to check out our contributing guidelines,
+https://github.com/astropy/astropy/blob/main/CONTRIBUTING.md .
+Please be sure to check out our code of conduct,
+https://github.com/astropy/astropy/blob/main/CODE_OF_CONDUCT.md . -->
+
+<!-- Please have a search on our GitHub repository to see if a similar
+issue has already been posted.
+If a similar issue is closed, have a quick look to see if you are satisfied
+by the resolution.
+If not please go ahead and open an issue! -->
+
+<!-- Please check that the development version still produces the same bug.
+You can install development version with
+pip install git+https://github.com/astropy/astropy
+command. -->
+
+### Description
+<!-- Provide a general description of the bug. -->
+
+Providing `ignored` inputs to `ModelBoundingBox` does not always work as expected.
+
+Running the following code:
+```python
+from astropy.modeling.bounding_box import ModelBoundingBox
+from astropy.modeling import models as astropy_models
+
+bbox = ModelBoundingBox((9, 10), astropy_models.Polynomial2D(1), ignored=["x"])
+print(bbox)
+print(bbox.ignored_inputs)
+```
+Produces:
+```
+ModelBoundingBox(
+    intervals={
+        x: Interval(lower=9, upper=10)
+    }
+    model=Polynomial2D(inputs=('x', 'y'))
+    order='C'
+)
+[]
+```
+This is incorrect. It instead should produce:
+```
+ModelBoundingBox(
+    intervals={
+        y: Interval(lower=9, upper=10)
+    }
+    model=Polynomial2D(inputs=('x', 'y'))
+    order='C'
+)
+['x']
+```
+
+Somehow the `ignored` status of the `x` input is being accounted for during the validation which occurs during the construction of the bounding box; however, it is getting "lost" somehow resulting in the weird behavior we see above.
+
+Oddly enough ignoring `y` does not have an issue. E.G. this code:
+```python
+from astropy.modeling.bounding_box import ModelBoundingBox
+from astropy.modeling import models as astropy_models
+
+bbox = ModelBoundingBox((11, 12), astropy_models.Polynomial2D(1), ignored=["y"])
+print(bbox)
+print(bbox.ignored_inputs)
+```
+Produces:
+```
+ModelBoundingBox(
+    intervals={
+        x: Interval(lower=11, upper=12)
+    }
+    ignored=['y']
+    model=Polynomial2D(inputs=('x', 'y'))
+    order='C'
+)
+['y']
+```
+as expected.
+
+### System Details
+This is present in both astropy 5.03 and astropy develop
+
+### Patch that fixed it
+
+diff --git a/astropy/modeling/bounding_box.py b/astropy/modeling/bounding_box.py
+--- a/astropy/modeling/bounding_box.py
++++ b/astropy/modeling/bounding_box.py
+@@ -694,6 +694,12 @@ def _validate_dict(self, bounding_box: dict):
+         for key, value in bounding_box.items():
+             self[key] = value
+ 
++    @property
++    def _available_input_index(self):
++        model_input_index = [self._get_index(_input) for _input in self._model.inputs]
++
++        return [_input for _input in model_input_index if _input not in self._ignored]
++
+     def _validate_sequence(self, bounding_box, order: str = None):
+         """Validate passing tuple of tuples representation (or related) and setting them."""
+         order = self._get_order(order)
+@@ -703,7 +709,7 @@ def _validate_sequence(self, bounding_box, order: str = None):
+             bounding_box = bounding_box[::-1]
+ 
+         for index, value in enumerate(bounding_box):
+-            self[index] = value
++            self[self._available_input_index[index]] = value
+ 
+     @property
+     def _n_inputs(self) -> int:
+@@ -727,7 +733,7 @@ def _validate_iterable(self, bounding_box, order: str = None):
+     def _validate(self, bounding_box, order: str = None):
+         """Validate and set any representation"""
+         if self._n_inputs == 1 and not isinstance(bounding_box, dict):
+-            self[0] = bounding_box
++            self[self._available_input_index[0]] = bounding_box
+         else:
+             self._validate_iterable(bounding_box, order)
+ 
+@@ -751,7 +757,7 @@ def validate(cls, model, bounding_box,
+             order = bounding_box.order
+             if _preserve_ignore:
+                 ignored = bounding_box.ignored
+-            bounding_box = bounding_box.intervals
++            bounding_box = bounding_box.named_intervals
+ 
+         new = cls({}, model, ignored=ignored, order=order)
+         new._validate(bounding_box)
