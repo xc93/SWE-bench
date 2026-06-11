@@ -1,0 +1,53 @@
+{
+  "contaminated": false,
+  "contamination_evidence": [],
+  "denied_tool_attempts": [],
+  "network_bash_commands": [],
+  "private_row_reads": [],
+  "private_eval_script_edits": [],
+  "private_eval_invocations": 0,
+  "f2p_leaks_before_eval": [],
+  "f2p_mentions_total": 0,
+  "f2p_mentions": [],
+  "num_turns": 63,
+  "duration_ms": 462017,
+  "usage": {
+    "input_tokens": 53,
+    "cache_creation_input_tokens": 44398,
+    "cache_read_input_tokens": 2356700,
+    "output_tokens": 15649,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 44398,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 151,
+        "cache_read_input_tokens": 62090,
+        "cache_creation_input_tokens": 206,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 206
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "total_cost_usd": 1.8492664999999993,
+  "counts": {
+    "denied_tool_attempts": 0,
+    "network_bash_commands": 0,
+    "private_row_reads": 0,
+    "private_eval_script_edits": 0,
+    "f2p_leaks_before_eval": 0
+  },
+  "session_status": "ok"
+}

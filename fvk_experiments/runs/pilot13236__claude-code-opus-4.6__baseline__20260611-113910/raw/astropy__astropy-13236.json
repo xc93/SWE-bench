@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13236",
+  "model_patch": "diff --git a/astropy/table/table.py b/astropy/table/table.py\nindex 5afe212..88830f5 100644\n--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1239,13 +1239,6 @@ class Table:\n                                 f'{fully_qualified_name} '\n                                 'did not return a valid mixin column')\n \n-        # Structured ndarray gets viewed as a mixin unless already a valid\n-        # mixin class\n-        if (not isinstance(data, Column) and not data_is_mixin\n-                and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n-            data = data.view(NdarrayMixin)\n-            data_is_mixin = True\n-\n         # Get the final column name using precedence.  Some objects may not\n         # have an info attribute. Also avoid creating info as a side effect.\n         if not name:\ndiff --git a/astropy/table/tests/test_mixin.py b/astropy/table/tests/test_mixin.py\nindex 2fdcd20..0dd1195 100644\n--- a/astropy/table/tests/test_mixin.py\n+++ b/astropy/table/tests/test_mixin.py\n@@ -700,8 +700,7 @@ def test_skycoord_representation():\n def test_ndarray_mixin():\n     \"\"\"\n     Test directly adding a plain structured array into a table instead of the\n-    view as an NdarrayMixin.  Once added as an NdarrayMixin then all the previous\n-    tests apply.\n+    view as an NdarrayMixin.  Structured arrays are added as Column.\n     \"\"\"\n     a = np.array([(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')],\n                  dtype='<i4,' + ('|U1'))\n@@ -717,7 +716,7 @@ def test_ndarray_mixin():\n     t['c'] = c\n     t['d'] = d\n \n-    assert isinstance(t['a'], NdarrayMixin)\n+    assert isinstance(t['a'], Column)\n \n     assert t['a'][1][1] == a[1][1]\n     assert t['a'][2][0] == a[2][0]\n@@ -725,7 +724,7 @@ def test_ndarray_mixin():\n     assert t[1]['a'][1] == a[1][1]\n     assert t[2]['a'][0] == a[2][0]\n \n-    assert isinstance(t['b'], NdarrayMixin)\n+    assert isinstance(t['b'], Column)\n \n     assert t['b'][1]['x'] == b[1]['x']\n     assert t['b'][1]['y'] == b[1]['y']\n@@ -733,7 +732,7 @@ def test_ndarray_mixin():\n     assert t[1]['b']['x'] == b[1]['x']\n     assert t[1]['b']['y'] == b[1]['y']\n \n-    assert isinstance(t['c'], NdarrayMixin)\n+    assert isinstance(t['c'], Column)\n \n     assert t['c'][1]['rx'] == c[1]['rx']\n     assert t['c'][1]['ry'] == c[1]['ry']\n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 464.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/pilot13236__claude-code-opus-4.6__baseline__20260611-113910/astropy__astropy-13236",
+  "workspace_manifest_sha256": "b5c4f157e0a79493155371291ad9f69c976399201588036d5b7305b8a390a937",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 63,
+      "duration_ms": 462017,
+      "total_cost_usd": 1.8492664999999993,
+      "usage": {
+        "input_tokens": 53,
+        "cache_creation_input_tokens": 44398,
+        "cache_read_input_tokens": 2356700,
+        "output_tokens": 15649,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 44398,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 151,
+            "cache_read_input_tokens": 62090,
+            "cache_creation_input_tokens": 206,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 206
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 53,
+        "completion_tokens": 15649
+      }
+    }
+  ],
+  "wall_s": 565.8,
+  "finished_at": "2026-06-11T11:48:42Z"
+}

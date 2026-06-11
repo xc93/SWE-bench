@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13236",
+  "model_patch": "diff --git a/astropy/table/table.py b/astropy/table/table.py\nindex 5afe212..88830f5 100644\n--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1239,13 +1239,6 @@ class Table:\n                                 f'{fully_qualified_name} '\n                                 'did not return a valid mixin column')\n \n-        # Structured ndarray gets viewed as a mixin unless already a valid\n-        # mixin class\n-        if (not isinstance(data, Column) and not data_is_mixin\n-                and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n-            data = data.view(NdarrayMixin)\n-            data_is_mixin = True\n-\n         # Get the final column name using precedence.  Some objects may not\n         # have an info attribute. Also avoid creating info as a side effect.\n         if not name:\n",
+  "model_patch_v1": "diff --git a/astropy/table/table.py b/astropy/table/table.py\nindex 5afe212..88830f5 100644\n--- a/astropy/table/table.py\n+++ b/astropy/table/table.py\n@@ -1239,13 +1239,6 @@ class Table:\n                                 f'{fully_qualified_name} '\n                                 'did not return a valid mixin column')\n \n-        # Structured ndarray gets viewed as a mixin unless already a valid\n-        # mixin class\n-        if (not isinstance(data, Column) and not data_is_mixin\n-                and isinstance(data, np.ndarray) and len(data.dtype) > 1):\n-            data = data.view(NdarrayMixin)\n-            data_is_mixin = True\n-\n         # Get the final column name using precedence.  Some objects may not\n         # have an info attribute. Also avoid creating info as a side effect.\n         if not name:\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 510.4,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/pilot13236__claude-code-opus-4.6__review-control__20260611-115154/astropy__astropy-13236",
+  "workspace_manifest_sha256": "c7f097b70103732dee017a700f2ac4d06f816b0696d95d04a25ad6ab0478e170",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 57,
+      "duration_ms": 508132,
+      "total_cost_usd": 1.9710384999999997,
+      "usage": {
+        "input_tokens": 54,
+        "cache_creation_input_tokens": 84640,
+        "cache_read_input_tokens": 2106537,
+        "output_tokens": 15376,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 84640,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 265,
+            "cache_read_input_tokens": 58330,
+            "cache_creation_input_tokens": 321,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 321
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 54,
+        "completion_tokens": 15376
+      }
+    }
+  ],
+  "wall_s": 589.2,
+  "finished_at": "2026-06-11T12:01:50Z"
+}

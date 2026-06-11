@@ -1,0 +1,20 @@
+{
+  "instance_id": "astropy__astropy-13236",
+  "arm_kind": "baseline",
+  "built_at": "2026-06-11T11:40:52Z",
+  "base_commit": "6ed769d58d89380ebaa1ef52b300691eefda8928",
+  "repo_source": "https://github.com/astropy/astropy.git",
+  "repo_local_head": "2659a2dcd3ccf973732e244bf66e7c6af04a778f",
+  "venv": {
+    "python": "Python 3.9.25",
+    "spec_source": "swebench.MAP_REPO_VERSION_TO_SPECS"
+  },
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "779faf4019cdf00bd6d74463c3d7f0f8ab492c7f1586a87455c77810b0a013d2",
+    "benchmark/public_instance.json": "7415c9c629af2f5a3356d01e92fe1c457e5bc21327829f4d7343771c90dba17d"
+  },
+  "row_path": null,
+  "row_sha256": null
+}

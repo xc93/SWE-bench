@@ -1,0 +1,33 @@
+# PILOT (single instance astropy__astropy-13236) — FVK-REPLICATE arm @ claude-code.
+# Grigore's verbatim 5-phase FVK protocol (this is the one instance we have his exact
+# prompt AND his result for: he reported R 2/2, 644/644). Sealed session, web denied,
+# answer key out of reach. The fidelity anchor for the whole experiment.
+# Run:
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/pilot13236__claude-code-opus46__fvk-replicate.yaml
+run_name: pilot13236__claude-code-opus-4.6__fvk-replicate
+tag: fvk-replicate
+
+dataset:
+  name: princeton-nlp/SWE-bench_Verified
+  split: test
+  oracle_text_dataset: princeton-nlp/SWE-bench_oracle
+  instance_ids:
+    - astropy__astropy-13236
+
+model:
+  provider: claude-code
+  name: claude-code-opus-4.6
+  cc_model: claude-opus-4-6
+  max_turns: 200
+  session_timeout_s: 5400
+
+inference:
+  max_workers: 1
+
+eval:
+  max_workers: 4
+  timeout_s: 1800
+
+prompt:
+  style: oracle
+  system_prompt: prompts/agentic/fvk-replicate.md

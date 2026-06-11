@@ -1,0 +1,34 @@
+{
+  "run_id": "pilot13236__claude-code-opus-4.6__baseline__20260611-113910",
+  "arm": "baseline",
+  "arm_kind": "baseline",
+  "model_label": "claude-code-opus-4.6__baseline",
+  "model": "claude-code-opus-4.6",
+  "provider": "claude-code",
+  "thinking": null,
+  "prompt_path": "prompts/agentic/baseline.md",
+  "prompt_version": "v1",
+  "prompt_sha256": "0720aa20c9379da11a9d2b72864951e80e99971c5c7e414a376a828ddb83e7f8",
+  "cc_model": "claude-opus-4-6",
+  "cc_version": "2.1.169 (Claude Code)",
+  "max_turns": 200,
+  "session_timeout_s": 5400,
+  "disallowed_tools": "WebSearch,WebFetch",
+  "sealed_home": "/home/xc/.cache/fvk-agent-home",
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-13236"
+  ],
+  "started_at": "2026-06-11T11:39:17Z",
+  "finished_at": "2026-06-11T11:48:42Z",
+  "n_with_patch": 1,
+  "n_errors": 0,
+  "contaminated_ids": [],
+  "session_statuses": {
+    "astropy__astropy-13236": "ok"
+  },
+  "workspace_manifest_shas": {
+    "astropy__astropy-13236": "b5c4f157e0a79493155371291ad9f69c976399201588036d5b7305b8a390a937"
+  }
+}

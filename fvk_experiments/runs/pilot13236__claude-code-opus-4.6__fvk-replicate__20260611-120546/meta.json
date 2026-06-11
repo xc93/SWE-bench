@@ -1,0 +1,37 @@
+{
+  "run_id": "pilot13236__claude-code-opus-4.6__fvk-replicate__20260611-120546",
+  "arm": "fvk-replicate",
+  "arm_kind": "fvk-replicate",
+  "model_label": "claude-code-opus-4.6__fvk-replicate",
+  "model": "claude-code-opus-4.6",
+  "provider": "claude-code",
+  "thinking": null,
+  "prompt_path": "prompts/agentic/fvk-replicate.md",
+  "prompt_version": "v1",
+  "prompt_sha256": "b76db2120bf9b33d7c25d4a4a01698118ac2985bc5a99b87ae0c44a0517b3316",
+  "cc_model": "claude-opus-4-6",
+  "cc_version": "2.1.169 (Claude Code)",
+  "max_turns": 200,
+  "session_timeout_s": 5400,
+  "disallowed_tools": "WebSearch,WebFetch",
+  "sealed_home": "/home/xc/.cache/fvk-agent-home",
+  "kit_dir": "/home/xc/Projects/formal-verification-kit",
+  "kit_commit": "d0d07bad2d500467f7e1e9ccc4a3aa2af638a38d",
+  "kit_dirty": false,
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-13236"
+  ],
+  "started_at": "2026-06-11T12:05:53Z",
+  "finished_at": "2026-06-11T12:14:47Z",
+  "n_with_patch": 1,
+  "n_errors": 0,
+  "contaminated_ids": [],
+  "session_statuses": {
+    "astropy__astropy-13236": "ok"
+  },
+  "workspace_manifest_shas": {
+    "astropy__astropy-13236": "2b47dbafe36dbebeff3d8b174fb79328ce42e5017f8508214ea9c275a93b3483"
+  }
+}

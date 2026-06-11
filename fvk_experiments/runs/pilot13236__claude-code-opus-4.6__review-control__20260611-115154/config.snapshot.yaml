@@ -1,0 +1,32 @@
+# PILOT (single instance astropy__astropy-13236) — REVIEW-CONTROL arm @ claude-code.
+# Grigore's 5-phase protocol with FVK swapped for disciplined plain-English review
+# (non-regression discipline preserved). The control that isolates FVK's specific value.
+# Run:
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/pilot13236__claude-code-opus46__review-control.yaml
+run_name: pilot13236__claude-code-opus-4.6__review-control
+tag: review-control
+
+dataset:
+  name: princeton-nlp/SWE-bench_Verified
+  split: test
+  oracle_text_dataset: princeton-nlp/SWE-bench_oracle
+  instance_ids:
+    - astropy__astropy-13236
+
+model:
+  provider: claude-code
+  name: claude-code-opus-4.6
+  cc_model: claude-opus-4-6
+  max_turns: 200
+  session_timeout_s: 5400
+
+inference:
+  max_workers: 1
+
+eval:
+  max_workers: 4
+  timeout_s: 1800
+
+prompt:
+  style: oracle
+  system_prompt: prompts/agentic/review-control.md
