@@ -422,3 +422,147 @@ def test_previews_exist_for_all_10_pinned_instances_and_3_arms():
     for arm in ARMS:
         for iid in pinned:
             assert (PREVIEWS / arm / f"{iid}.md").exists(), (arm, iid)
+
+
+# ============================================================================
+# v2 multi-repo templates + generalized import name (45-instance run).
+# ============================================================================
+
+from fvk_bench.agentic_prompts import AGENTIC_DIR  # noqa: E402
+from fvk_bench.env_specs import import_name_for     # noqa: E402
+
+V2_PATHS = {arm: AGENTIC_DIR / f"{arm}-v2.md" for arm in ARMS}
+
+# One representative row per repo of the Grigore-set (public fields only; values
+# are plausible but the test only exercises string substitution, never network).
+_REPO_ROWS = {
+    "django/django": dict(instance_id="django__django-10554", version="3.2"),
+    "sympy/sympy": dict(instance_id="sympy__sympy-17630", version="1.5"),
+    "sphinx-doc/sphinx": dict(instance_id="sphinx-doc__sphinx-9461", version="4.2"),
+    "astropy/astropy": dict(instance_id="astropy__astropy-13398", version="5.0"),
+    "pytest-dev/pytest": dict(instance_id="pytest-dev__pytest-5787", version="5.1"),
+    "pydata/xarray": dict(instance_id="pydata__xarray-3993", version="0.12"),
+    "pylint-dev/pylint": dict(instance_id="pylint-dev__pylint-4551", version="2.9"),
+    "scikit-learn/scikit-learn": dict(instance_id="scikit-learn__scikit-learn-25102",
+                                      version="1.3"),
+}
+
+
+def _repo_row(repo: str) -> dict:
+    meta = _REPO_ROWS[repo]
+    return {
+        "instance_id": meta["instance_id"],
+        "repo": repo,
+        "base_commit": "0" * 40,
+        "version": meta["version"],
+        "difficulty": "15 min - 1 hour",
+        "problem_statement": f"Something is wrong in {repo}.\nSee the issue.\n",
+        "FAIL_TO_PASS": json.dumps(["t0", "t1"]),
+        "PASS_TO_PASS": json.dumps([f"p{i}" for i in range(5)]),
+    }
+
+
+def test_v2_templates_exist_for_all_three_arms():
+    for arm in ARMS:
+        assert V2_PATHS[arm].exists(), f"missing v2 template {V2_PATHS[arm]}"
+
+
+def test_v2_templates_instantiate_for_one_instance_per_repo():
+    """String-substitution only (row_offset given so no HF lookup). Every
+    placeholder resolves and the import-name line is repo-correct."""
+    pat = re.compile(r"\{([a-z][a-z0-9_]*)\}")
+    for repo in _REPO_ROWS:
+        row = _repo_row(repo)
+        fields = fields_for_instance(row, row_offset=0)
+        for arm in ARMS:
+            out = instantiate(load_template(V2_PATHS[arm]), fields)
+            leftover = set(pat.findall(out)) & set(fields)
+            assert not leftover, (arm, repo, leftover)
+            # the env-verify line imports the correct top-level module
+            assert f"import {import_name_for(repo)}" in out, (arm, repo)
+
+
+def test_v2_module_name_is_generalized_import_name():
+    # scikit-learn is the case the trailing-segment heuristic gets wrong; v2 must
+    # emit `import sklearn`, not `import scikit-learn`.
+    row = _repo_row("scikit-learn/scikit-learn")
+    fields = fields_for_instance(row, row_offset=0)
+    assert fields["module_name"] == "sklearn"
+    for arm in ARMS:
+        out = instantiate(load_template(V2_PATHS[arm]), fields)
+        assert "import sklearn" in out
+        assert "import scikit-learn" not in out
+
+
+def test_v2_phase0_is_agent_self_build_not_prebuilt_verify():
+    """The ONLY substantive change from v1: Phase 0 / Workspace Setup tells the
+    agent to set up (or verify) its OWN env, and encourages ad-hoc local tests."""
+    for arm in ARMS:
+        body = load_template(V2_PATHS[arm])
+        low = body.lower()
+        # self-build cue + the no-clone/no-remote leak-safety guard
+        assert "do not add a git remote" in low, arm
+        assert "may already be staged" in low, arm
+        assert "python3 -m venv .venv" in body, arm
+        assert "pip install -e ." in body, arm
+        # ad-hoc local test running is explicit
+        assert ("run the repo's own tests" in low
+                or "running the repo's own public tests" in low
+                or "freely throughout this task" in low), arm
+
+
+def test_v2_phased_templates_keep_protocol_and_discipline():
+    """v2 fvk/review keep the 5-phase protocol, the benchmark-discipline block,
+    the answer-key-out-of-workspace line, and the final report — only Phase 0
+    changed."""
+    for arm in ("fvk-replicate", "review-control"):
+        body = load_template(V2_PATHS[arm])
+        for verbatim in (
+            "2. Do not inspect or use the gold `patch` field.",
+            "8. Do not use private evaluator logs or hidden failure traces to guide v2.",
+            ("Grading is performed by `scripts/private_eval.py`, which reports only "
+             "aggregate pass/fail counts; the reference solution and hidden tests are "
+             "not available in this workspace."),
+            "    .venv/bin/python scripts/private_eval.py patches/solution_v1.patch v1",
+            "## Phase 5: Evaluate v2 Privately",
+            "## Final Report",
+        ):
+            assert verbatim in body, (arm, verbatim)
+        # all five phases + Phase 0 present
+        for n in range(0, 6):
+            assert f"## Phase {n}:" in body, (arm, n)
+
+
+def test_v2_fvk_has_kit_and_review_has_no_fvk():
+    fvk = load_template(V2_PATHS["fvk-replicate"])
+    rev = load_template(V2_PATHS["review-control"])
+    assert "formal-verification-kit/" in fvk
+    # control arm stays free of FVK/formal-method content (same rule as v1)
+    low = rev.lower()
+    for tok in ("fvk", "formal", "kit", "proof", "obligation", "/formalize", "grosu"):
+        assert tok not in low, f"forbidden token in review-control-v2: {tok!r}"
+    assert "`review/FINDINGS.md`" in rev
+
+
+def test_v2_baseline_is_single_pass_and_neutral():
+    body = load_template(V2_PATHS["baseline"])
+    low = body.lower()
+    assert "## Phase" not in body
+    assert not re.search(r"\bv[12]\b", body), "baseline-v2 must not mention v1/v2"
+    for tok in ("fvk", "kit", "review", "formal", "self-eval", "revise", "iterate"):
+        assert tok not in low, f"non-neutral token in baseline-v2: {tok!r}"
+    assert "patches/solution.patch" in body
+    assert "scripts/private_eval.py" not in body
+    # still self-builds its env
+    assert "python3 -m venv .venv" in body
+
+
+def test_v1_astropy_path_unchanged_by_generalization():
+    """Generalizing module_name via the import map must not perturb the curated
+    astropy-13236 fidelity: module_name/repo_title are still astropy/Astropy."""
+    f = _fields_13236()
+    assert f["module_name"] == "astropy"
+    assert f["repo_title"] == "Astropy"
+    # and the frozen residual-diff fidelity test (defined above) still holds —
+    # re-assert the core field here as a guard against import-map drift.
+    assert import_name_for("astropy/astropy") == "astropy"
