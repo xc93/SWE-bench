@@ -20,6 +20,7 @@ rate. Keep upstream `swebench/` unmodified — all experiment code lives in `fvk
 
 - `.venv/` is uv-managed (no pip binary): use `.venv/bin/python`; install via `uv pip install --python .venv/bin/python <pkg>`
 - Inference needs `DEEPSEEK_API_KEY` env var; evaluation needs a running docker daemon
+- Provider `model.provider: codex-cli` (configs `astropy10__codex__*`) runs inference via the OpenAI Codex CLI under the owner's ChatGPT subscription — one-time `codex login`, no API key; binary auto-resolved (`CODEX_BIN` > PATH > newest VS Code ChatGPT extension); `codex_model`+`reasoning_effort` required, `thinking`/`max_tokens` ignored (see DESIGN.md "Codex backend")
 - Configs are one per (subject × model × arm): `configs/<subject>__<model-short>__<arm>.yaml` (e.g. `astropy10__v4-pro__fvk-v1.yaml`). New model ⇒ copy a config, change `model.name` + `run_name` only. Pair-compare arms within the same model.
 - An arm is what it injects (no declared type): nothing ⇒ `baseline`; `prompt.system_prompt` and/or `prompt.demos` ⇒ a treatment arm. Label precedence: config `tag:` > prompt frontmatter `tag:` > `baseline` / `fvk-<version>`. Legacy configs with `variant:` / `fvk_prompt:` still load (aliased); run artifacts use `arm` / `prompt_*` keys and readers fall back to the old `variant_tag` / `fvk_prompt_*`.
 - DeepSeek V4 API: models `deepseek-v4-flash` / `deepseek-v4-pro`; thinking mode is a request param `{"thinking": {"type": "enabled"}}` (no more `deepseek-reasoner` alias)

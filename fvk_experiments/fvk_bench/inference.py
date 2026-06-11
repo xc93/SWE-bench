@@ -1,4 +1,4 @@
-"""DeepSeek inference: threaded, resumable, with full raw provenance per instance."""
+"""Inference (DeepSeek API or Codex CLI): threaded, resumable, full raw provenance."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import os
 import time
 import datetime as dt
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
 from pathlib import Path
 
+from .codex import codex_version, resolve_codex_bin, run_codex_exec
 from .config import Config
 from .data import load_oracle_texts, verify_instances_in_dataset
 from .demos import demos_shas, load_demo_texts
@@ -33,6 +35,15 @@ def build_messages(oracle_text: str, system_text: str | None) -> list[dict]:
     return msgs
 
 
+def compose_codex_prompt(oracle_text: str, system_text: str | None) -> str:
+    """codex exec takes a single prompt: any system text (static prompt and/or
+    demos) is prepended in tags, then the oracle task."""
+    if not system_text:
+        return oracle_text
+    return (f"<experiment_instructions>\n{system_text}\n</experiment_instructions>"
+            f"\n\n{oracle_text}")
+
+
 def _request(client, cfg: Config, messages: list[dict]):
     kwargs: dict = {
         "model": cfg.model.name,
@@ -50,12 +61,12 @@ def _request(client, cfg: Config, messages: list[dict]):
     return client.chat.completions.create(**kwargs)
 
 
-def _call_with_retries(client, cfg: Config, messages: list[dict]):
+def _with_retries(cfg: Config, fn):
     last_err = None
     for attempt in range(cfg.inference.api_retries):
         try:
-            return _request(client, cfg, messages)
-        except Exception as e:  # noqa: BLE001 - any transport/API error is retryable here
+            return fn()
+        except Exception as e:  # noqa: BLE001 - any transport/API/CLI error is retryable here
             last_err = e
             wait = 10 * (2**attempt)
             print(f"    api error (attempt {attempt + 1}/{cfg.inference.api_retries}): "
@@ -64,8 +75,43 @@ def _call_with_retries(client, cfg: Config, messages: list[dict]):
     raise last_err
 
 
-def _run_one(client, cfg: Config, iid: str, oracle_text: str, system_text: str | None,
-             run_dir: Path, resume: bool) -> dict:
+def _ds_sample(client, cfg: Config, messages: list[dict], sample_i: int) -> dict:
+    resp = _request(client, cfg, messages)
+    choice = resp.choices[0]
+    msg = choice.message.model_dump()
+    return {
+        "sample": sample_i,
+        "api_model": resp.model,
+        "finish_reason": choice.finish_reason,
+        "content": msg.get("content") or "",
+        "reasoning_content": msg.get("reasoning_content"),
+        "usage": resp.usage.model_dump() if resp.usage else None,
+    }
+
+
+def _codex_sample(codex_bin: str, cfg: Config, prompt: str, scratch_dir: Path,
+                  sample_i: int) -> dict:
+    res = run_codex_exec(codex_bin, prompt, cfg.model.codex_model,
+                         cfg.model.reasoning_effort,
+                         cfg.inference.request_timeout_s, scratch_dir)
+    usage = res["usage"]
+    if usage:  # alias codex token keys to the names reports/prints rely on
+        usage = {**usage, "prompt_tokens": usage.get("input_tokens"),
+                 "completion_tokens": usage.get("output_tokens")}
+    return {
+        "sample": sample_i,
+        "provider": "codex-cli",
+        "content": res["final_message"],
+        "events": res["events"],
+        "usage": usage,
+        "argv": res["argv"],
+        "returncode": res["returncode"],
+        "duration_s": res["duration_s"],
+    }
+
+
+def _run_one(client, codex_bin: str | None, cfg: Config, iid: str, oracle_text: str,
+             system_text: str | None, run_dir: Path, resume: bool) -> dict:
     raw_path = run_dir / "raw" / f"{iid}.json"
     if resume and raw_path.exists():
         rec = json.loads(raw_path.read_text())
@@ -82,29 +128,27 @@ def _run_one(client, cfg: Config, iid: str, oracle_text: str, system_text: str |
             _atomic_write(raw_path, json.dumps(rec, indent=2))
             return {**rec, "resumed": True}
 
-    messages = build_messages(oracle_text, system_text)
     pdir = run_dir / "prompts"
     if system_text:
         _atomic_write(pdir / f"{iid}.system.txt", system_text)
     _atomic_write(pdir / f"{iid}.user.txt", oracle_text)
 
+    if cfg.model.provider == "codex-cli":
+        prompt = compose_codex_prompt(oracle_text, system_text)
+        _atomic_write(pdir / f"{iid}.prompt.txt", prompt)  # exactly what codex gets
+        sample_fn = partial(_codex_sample, codex_bin, cfg, prompt,
+                            run_dir / "scratch" / iid)
+    else:
+        sample_fn = partial(_ds_sample, client, cfg,
+                            build_messages(oracle_text, system_text))
+
     t0 = time.monotonic()
     samples, patch, error = [], None, None
     try:
         for sample_i in range(1 + cfg.inference.retry_on_empty_patch):
-            resp = _call_with_retries(client, cfg, messages)
-            choice = resp.choices[0]
-            msg = choice.message.model_dump()
-            content = msg.get("content") or ""
-            samples.append({
-                "sample": sample_i,
-                "api_model": resp.model,
-                "finish_reason": choice.finish_reason,
-                "content": content,
-                "reasoning_content": msg.get("reasoning_content"),
-                "usage": resp.usage.model_dump() if resp.usage else None,
-            })
-            patch = extract_diff(content)
+            s = _with_retries(cfg, partial(sample_fn, sample_i))
+            samples.append(s)
+            patch = extract_diff(s["content"])
             if patch:
                 break
             print(f"    {iid}: no parsable diff in sample {sample_i}, "
@@ -127,11 +171,13 @@ def _run_one(client, cfg: Config, iid: str, oracle_text: str, system_text: str |
 
 def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
     """Run all configured instances; write raw/, prompts/, predictions.jsonl, meta.json."""
-    from openai import OpenAI
-
-    api_key = os.environ.get(cfg.model.api_key_env)
-    if not api_key:
-        raise EnvironmentError(f"{cfg.model.api_key_env} is not set")
+    client = codex_bin = api_key = None
+    if cfg.model.provider == "codex-cli":
+        codex_bin = resolve_codex_bin()  # subscription auth via `codex login`, no API key
+    else:
+        api_key = os.environ.get(cfg.model.api_key_env)
+        if not api_key:
+            raise EnvironmentError(f"{cfg.model.api_key_env} is not set")
 
     print(f"[{_now()}] verifying instances and loading oracle texts…", flush=True)
     verify_instances_in_dataset(cfg)
@@ -153,7 +199,9 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
         "arm": cfg.arm_tag(),
         "model_label": cfg.model_label(),
         "model": cfg.model.name,
-        "thinking": cfg.model.thinking,
+        "provider": cfg.model.provider,
+        # None (not false) for codex-cli: thinking is a DeepSeek-only knob.
+        "thinking": cfg.model.thinking if cfg.model.provider == "deepseek" else None,
         "prompt_path": cfg.prompt.system_prompt,
         "prompt_version": cfg.prompt_version(),
         "prompt_sha256": cfg.system_prompt_sha(),
@@ -163,18 +211,27 @@ def run_inference(cfg: Config, run_dir: Path, resume: bool = True) -> Path:
         "instance_ids": cfg.dataset.instance_ids,
         "started_at": _now(),
     }
+    if codex_bin:
+        meta.update({
+            "codex_bin": codex_bin,
+            "codex_version": codex_version(codex_bin),
+            "codex_model": cfg.model.codex_model,
+            "reasoning_effort": cfg.model.reasoning_effort,
+        })
     _atomic_write(run_dir / "meta.json", json.dumps(meta, indent=2))
 
-    client = OpenAI(api_key=api_key, base_url=cfg.model.base_url,
-                    timeout=cfg.inference.request_timeout_s, max_retries=0)
+    if cfg.model.provider != "codex-cli":
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=cfg.model.base_url,
+                        timeout=cfg.inference.request_timeout_s, max_retries=0)
 
     ids = cfg.dataset.instance_ids
     print(f"[{_now()}] {meta['model_label']}: {len(ids)} instances, "
           f"{cfg.inference.max_workers} workers", flush=True)
     records: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=cfg.inference.max_workers) as pool:
-        futs = {pool.submit(_run_one, client, cfg, iid, texts[iid], system_for(iid),
-                            run_dir, resume): iid
+        futs = {pool.submit(_run_one, client, codex_bin, cfg, iid, texts[iid],
+                            system_for(iid), run_dir, resume): iid
                 for iid in ids}
         done = 0
         for fut in as_completed(futs):

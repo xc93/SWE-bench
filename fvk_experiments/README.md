@@ -32,7 +32,8 @@ sent to the model is always archived per instance in `runs/<id>/prompts/<iid>.sy
 ## Quickstart (from the SWE-bench repo root)
 
 ```bash
-export DEEPSEEK_API_KEY=…           # required for inference
+export DEEPSEEK_API_KEY=…           # required for deepseek-provider inference
+                                    # (codex-cli arms need `codex login` instead)
 
 PY=.venv/bin/python
 RUN="$PY fvk_experiments/run.py"
@@ -75,11 +76,21 @@ Everything is config-driven ([configs/](configs/)):
   (writes the sibling `.content.json`, sha-stamped so a changed registry can never run
   with stale content; the validator enforces 3 distinct picks and rejects any pick from
   the evaluated instances). Both shas are recorded in each run's `meta.json`.
-- **Which model**: `model.name` (`deepseek-v4-flash` ⇄ `deepseek-v4-pro`),
-  `model.thinking` (true/false). One config per **(subject × model × arm)**, named
-  `<subject>__<model-short>__<arm>.yaml` with
-  `run_name: <subject>__ds-<model-short>-think__<arm>` — to add a model, copy an
-  existing config and change only `model.name` and `run_name`. The model is carried
+- **Which model**: `model.provider` picks the backend. Default `deepseek` — the
+  DeepSeek API (`DEEPSEEK_API_KEY` required) with `model.name`
+  (`deepseek-v4-flash` ⇄ `deepseek-v4-pro`) and `model.thinking` (true/false).
+  Alternative `codex-cli` (configs `astropy10__codex__*`) — one-shot `codex exec`
+  through the OpenAI Codex CLI under the owner's **ChatGPT subscription**: no API
+  key, just a one-time `codex login`; the binary is resolved dynamically
+  (`CODEX_BIN` env > `codex` on PATH > newest VS Code ChatGPT extension). codex-cli
+  configs set `codex_model` (the `-m` value, e.g. `gpt-5.5`) and `reasoning_effort`
+  (e.g. `xhigh`, → label `codex-5.5-xhigh__<arm>`); `thinking`/`max_tokens` don't
+  apply. System text is prepended to the single prompt as
+  `<experiment_instructions>` (archived per instance as `prompts/<iid>.prompt.txt`);
+  note Codex wraps the model in its own ~22.5k-token agent harness — identical for
+  all arms, see [DESIGN.md](DESIGN.md). One config per **(subject × model × arm)**,
+  named `<subject>__<model-short>__<arm>.yaml` — to add a model, copy an existing
+  config and change only the model block and `run_name`. The model is carried
   through run ids, prediction labels, reports, and RESULTS.md automatically. Compare
   arms **within** one model; cross-model pair reports get a loud warning banner since
   they measure the model, not the prompt.

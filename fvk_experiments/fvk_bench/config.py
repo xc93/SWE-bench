@@ -54,12 +54,18 @@ class DatasetCfg:
 @dataclass
 class ModelCfg:
     name: str = "deepseek-v4-flash"
+    # "deepseek" (OpenAI-compatible API, needs api_key_env) or "codex-cli" (one-shot
+    # `codex exec` under a ChatGPT subscription — no API key; `thinking`/`max_tokens`
+    # are ignored, the Codex harness controls both).
+    provider: str = "deepseek"
     base_url: str = "https://api.deepseek.com"
     api_key_env: str = "DEEPSEEK_API_KEY"
     thinking: bool = True
     reasoning_effort: str | None = None
     max_tokens: int = 65536
     temperature: float | None = None
+    # `codex exec -m` value (e.g. gpt-5.5); required for codex-cli, rejected otherwise.
+    codex_model: str | None = None
 
 
 @dataclass
@@ -165,6 +171,9 @@ class Config:
             "a demos-only arm has no default label — set a config-level `tag:`")
 
     def model_label(self) -> str:
+        if self.model.provider == "codex-cli":
+            effort = f"-{self.model.reasoning_effort}" if self.model.reasoning_effort else ""
+            return f"{self.model.name}{effort}__{self.arm_tag()}"
         think = "think" if self.model.thinking else "nothink"
         return f"{self.model.name}-{think}__{self.arm_tag()}"
 
@@ -203,6 +212,14 @@ def validate(cfg: Config) -> None:
         raise ValueError("run_name must be filesystem/docker safe: [A-Za-z0-9._-]+")
     if not cfg.dataset.instance_ids:
         raise ValueError("dataset.instance_ids must be a non-empty pinned list")
+    if cfg.model.provider not in ("deepseek", "codex-cli"):
+        raise ValueError(
+            f"model.provider must be 'deepseek' or 'codex-cli', got {cfg.model.provider!r}")
+    if cfg.model.provider == "codex-cli" and not cfg.model.codex_model:
+        raise ValueError(
+            "provider 'codex-cli' requires model.codex_model (the `codex exec -m` value)")
+    if cfg.model.provider != "codex-cli" and cfg.model.codex_model:
+        raise ValueError("model.codex_model is only valid with provider 'codex-cli'")
     if cfg.prompt.style != "oracle":
         raise ValueError(f"only prompt.style 'oracle' is supported, got {cfg.prompt.style!r}")
     if cfg.prompt.system_prompt and not cfg.system_prompt_path().exists():

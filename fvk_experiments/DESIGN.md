@@ -51,7 +51,8 @@ fvk_experiments/
 │   ├── data.py               # instance pinning + oracle-text join
 │   ├── demos.py              # per-instance demos: registry validation, content freeze, injection
 │   ├── extract.py            # pure diff extraction + hunk-count normalization (unit-tested)
-│   ├── inference.py          # DeepSeek calls (threaded, resumable, full raw provenance)
+│   ├── codex.py              # codex-cli provider: bin resolution + one-shot `codex exec`
+│   ├── inference.py          # provider-dispatched calls (threaded, resumable, full raw provenance)
 │   ├── evaluate.py           # subprocess → swebench.harness.run_evaluation (+infra retries)
 │   └── report.py             # per-run report.md + summary.json + pair comparison + RESULTS.md
 ├── run.py                    # CLI: run / pin-instances / gold-sanity / compare / results
@@ -70,6 +71,33 @@ string, so docker logs under `logs/run_evaluation/<run_id>/` line up with `runs/
 the FVK prompt version is part of the label, and its sha256 is recorded in `meta.json`
 and the report.
 
+## Codex backend (`model.provider: codex-cli`, added 2026-06-11)
+
+A second provider so all arms can be rerun with OpenAI Codex as the model:
+
+- **One-shot via `codex exec`** under the owner's **ChatGPT subscription** (one-time
+  `codex login`; no API key). The binary is resolved dynamically — `CODEX_BIN` env >
+  `codex` on PATH > newest `~/.vscode/extensions/openai.chatgpt-*` install — because the
+  extension path is version-numbered and rots. Resolved path + `--version` go in `meta.json`.
+- **Pinned model config**: `codex_model: gpt-5.5` + `reasoning_effort: xhigh`
+  (`-c model_reasoning_effort="xhigh"`), label `codex-5.5-xhigh__<arm>`. DeepSeek-only
+  knobs (`thinking`, `max_tokens`) are ignored, not errors.
+- **Isolation flags**: `--ignore-user-config --ephemeral --skip-git-repo-check
+  -s read-only --color never --json`, cwd = a fresh empty scratch dir per instance
+  (`runs/<id>/scratch/<iid>/`, removed on success) — the agent has nothing to read and
+  nowhere to write; the prompt rides stdin (ARG_MAX-safe), the answer comes from `-o`.
+- **Black-box caveat**: "codex" here = gpt-5.5 **inside Codex's own agent harness**, whose
+  hidden system prompt alone is ~22.5k input tokens (measured: a 6-word prompt bills
+  ~22.5k in). We can't see or control it — acceptable because every arm shares it, so
+  pair deltas still isolate the injected prompt. Cross-provider comparisons measure the
+  whole stack, not the model.
+- **Same message discipline**: there is no system-message slot, so any system text
+  (static prompt and/or demos) is prepended to the single prompt wrapped in
+  `<experiment_instructions>` tags; the exact composed prompt is archived per instance
+  (`prompts/<iid>.prompt.txt`). Extraction/normalization, retries, resume (re-extract
+  from saved `final_message`, no new codex calls), eval, and reports are identical to
+  the DeepSeek path for fairness.
+
 ## Error handling
 
 - API error after retries → instance recorded with `error`, empty patch (counts unsolved), run continues.
@@ -87,4 +115,4 @@ and the report.
 ## Non-goals (YAGNI)
 
 Agentic scaffolds, BM25 retrieval mode, multi-seed sampling, statistical tests beyond paired
-flip counts (n=10), support for non-DeepSeek providers (the config leaves room, code doesn't branch).
+flip counts (n=10), providers beyond the two implemented (`deepseek` API, `codex-cli`).

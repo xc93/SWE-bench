@@ -165,6 +165,8 @@ cython_debug/
 .vscode/
 *.jsonl
 *.jsonl.*
+# fvk_experiments test fixtures are committed even when .jsonl
+!fvk_experiments/tests/fixtures/*.jsonl
 *.patch
 *.DS_Store
 data/repos/copies

@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"019eb4dd-26b1-70b2-a63c-0abf33fbfdab"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"CODEX_SMOKE_OK"}}
+{"type":"turn.completed","usage":{"input_tokens":22551,"cached_input_tokens":20352,"output_tokens":9,"reasoning_output_tokens":0}}

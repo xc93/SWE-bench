@@ -100,3 +100,34 @@ def test_missing_instances_rejected(tmp_path):
     p.write_text("run_name: x\n")
     with pytest.raises(ValueError, match="instance_ids"):
         load_config(p)
+
+
+CODEX_MODEL = textwrap.dedent("""\
+    model:
+      provider: codex-cli
+      name: codex-5.5
+      codex_model: gpt-5.5
+      reasoning_effort: xhigh
+    """)
+
+
+def test_codex_provider_loads_and_labels(tmp_path):
+    cfg = load_config(_write_cfg(tmp_path, CODEX_MODEL))
+    assert cfg.model.provider == "codex-cli"
+    assert cfg.model.codex_model == "gpt-5.5"
+    assert cfg.model_label() == "codex-5.5-xhigh__baseline"
+
+
+def test_codex_provider_requires_codex_model(tmp_path):
+    with pytest.raises(ValueError, match="codex_model"):
+        load_config(_write_cfg(tmp_path, "model:\n  provider: codex-cli\n  name: codex-5.5\n"))
+
+
+def test_codex_model_rejected_for_deepseek(tmp_path):
+    with pytest.raises(ValueError, match="codex_model"):
+        load_config(_write_cfg(tmp_path, "model:\n  codex_model: gpt-5.5\n"))
+
+
+def test_unknown_provider_rejected(tmp_path):
+    with pytest.raises(ValueError, match="provider"):
+        load_config(_write_cfg(tmp_path, "model:\n  provider: codexcli\n"))
