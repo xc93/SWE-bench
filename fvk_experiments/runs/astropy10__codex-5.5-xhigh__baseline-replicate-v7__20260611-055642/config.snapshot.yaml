@@ -1,0 +1,47 @@
+# Arm @ codex — BASELINE REPLICATE v7: an independent re-run of the codex baseline
+# (identical settings: oracle prompt only, no injected prompt, gpt-5.5 @ xhigh) to
+# measure run-to-run sampling variance, mirroring the v4-pro replicate. The original
+# codex baseline run and its pair comparisons stay untouched; this lands as NEW data
+# under its own arm label via the config-level tag.
+# Rerun:
+#   .venv/bin/python fvk_experiments/run.py run --config fvk_experiments/configs/astropy10__codex__baseline-replicate-v7.yaml
+run_name: astropy10__codex-5.5-xhigh__baseline-replicate-v7
+tag: baseline-replicate-v7
+
+dataset:
+  name: princeton-nlp/SWE-bench_Verified
+  split: test
+  oracle_text_dataset: princeton-nlp/SWE-bench_oracle
+  # First 10 astropy instances of SWE-bench_Verified:test in HF row order.
+  # Pinned 2026-06-10 via: run.py pin-instances --repo astropy --n 10
+  instance_ids:
+    - astropy__astropy-12907
+    - astropy__astropy-13033
+    - astropy__astropy-13236
+    - astropy__astropy-13398
+    - astropy__astropy-13453
+    - astropy__astropy-13579
+    - astropy__astropy-13977
+    - astropy__astropy-14096
+    - astropy__astropy-14182
+    - astropy__astropy-14309
+
+model:
+  provider: codex-cli       # one-shot `codex exec` under the ChatGPT subscription
+  name: codex-5.5           # label only; pair-compare against other codex-5.5 arms
+  codex_model: gpt-5.5      # the `codex exec -m` value
+  reasoning_effort: xhigh   # passed as -c model_reasoning_effort="xhigh"
+  # thinking/max_tokens do not apply to codex-cli (the Codex harness controls both)
+
+inference:
+  max_workers: 2            # codex exec is a heavyweight local process — low parallelism
+  request_timeout_s: 3600
+  api_retries: 3
+  retry_on_empty_patch: 1
+
+eval:
+  max_workers: 4
+  timeout_s: 1800
+
+prompt:
+  style: oracle

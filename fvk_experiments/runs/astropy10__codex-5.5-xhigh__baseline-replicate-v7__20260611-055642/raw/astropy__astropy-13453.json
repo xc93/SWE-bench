@@ -1,0 +1,726 @@
+{
+  "instance_id": "astropy__astropy-13453",
+  "model_patch": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,13 +348,15 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n         self.data.header.cols = cols\n+        self.data.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n         # Set HTML escaping to False for any column in the raw_html_cols input\n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "codex-cli",
+      "content": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,12 +348,14 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n         self.data.header.cols = cols\n+        self.data.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n         # Set HTML escaping to False for any column in the raw_html_cols input\n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())",
+      "events": [
+        {
+          "type": "thread.started",
+          "thread_id": "019eb544-0993-7923-8b30-1f5c17134b06"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_0",
+            "type": "agent_message",
+            "text": "I\u2019ll inspect the ASCII writer path and existing tests to make the patch match Astropy\u2019s conventions. Since this workspace is read-only, I\u2019ll return a git-applyable diff rather than modifying files in place."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"formats|iter_str_vals|HTML\" astropy/io/ascii astropy/table | head -200'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"formats|iter_str_vals|HTML\" astropy/io/ascii astropy/table | head -200'",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,260p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,260p' astropy/io/ascii/core.py\"",
+            "aggregated_output": "sed: can't read astropy/io/ascii/core.py: No such file or directory\n",
+            "exit_code": 2,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"html\" astropy/io/ascii/tests astropy/table/tests | head -200'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg -n \"html\" astropy/io/ascii/tests astropy/table/tests | head -200'",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_4",
+            "type": "agent_message",
+            "text": "The local checkout is very stripped down, and `rg` is not installed here, so I\u2019m falling back to `find`/`grep` and checking what files are actually present before shaping the diff."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 4 -type f | sort | head -300'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 4 -type f | sort | head -300'",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 5 -type d | sort | head -300'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 5 -type d | sort | head -300'",
+            "aggregated_output": ".\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls -la && find astropy -maxdepth 4 -type f 2>/dev/null | head -100'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'pwd && ls -la && find astropy -maxdepth 4 -type f 2>/dev/null | head -100'",
+            "aggregated_output": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__baseline-replicate-v7__20260611-055642/scratch/astropy__astropy-13453\ntotal 8\ndrwxrwxr-x 2 xc xc 4096 Jun 11 13:59 .\ndrwxrwxr-x 4 xc xc 4096 Jun 11 13:59 ..\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_8",
+            "type": "agent_message",
+            "text": "There are no repository files materialized in the workspace, so I\u2019m using the supplied source plus the installed Astropy package, if available, to confirm the writer API around `formats`."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_9",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"PYTHONDONTWRITEBYTECODE=1 python - <<'PY'\nimport inspect\ntry:\n    import astropy.io.ascii.core as core\nexcept Exception as exc:\n    print(type(exc).__name__, exc)\nelse:\n    for name in ['BaseData','BaseOutputter','TableOutputter','BaseReader','Csv','Basic']:\n        obj = getattr(core, name, None)\n        if obj is not None:\n            print('###', name)\n            try:\n                print(inspect.getsource(obj)[:6000])\n            except Exception as e:\n                print(e)\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_9",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"PYTHONDONTWRITEBYTECODE=1 python - <<'PY'\nimport inspect\ntry:\n    import astropy.io.ascii.core as core\nexcept Exception as exc:\n    print(type(exc).__name__, exc)\nelse:\n    for name in ['BaseData','BaseOutputter','TableOutputter','BaseReader','Csv','Basic']:\n        obj = getattr(core, name, None)\n        if obj is not None:\n            print('###', name)\n            try:\n                print(inspect.getsource(obj)[:6000])\n            except Exception as e:\n                print(e)\nPY\"",
+            "aggregated_output": "ModuleNotFoundError No module named 'astropy'\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"PYTHONDONTWRITEBYTECODE=1 python - <<'PY'\nimport inspect\ntry:\n    import astropy\n    import astropy.io.ascii.core as core\n    import astropy.io.ascii.html as html\nexcept Exception as exc:\n    print(type(exc).__name__, exc)\nelse:\n    print(astropy.__version__)\n    print(inspect.getsource(core.BaseReader.write)[:4000])\n    print('--- BaseData.write?')\n    print(inspect.getsource(core.BaseData.write)[:4000])\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"PYTHONDONTWRITEBYTECODE=1 python - <<'PY'\nimport inspect\ntry:\n    import astropy\n    import astropy.io.ascii.core as core\n    import astropy.io.ascii.html as html\nexcept Exception as exc:\n    print(type(exc).__name__, exc)\nelse:\n    print(astropy.__version__)\n    print(inspect.getsource(core.BaseReader.write)[:4000])\n    print('--- BaseData.write?')\n    print(inspect.getsource(core.BaseData.write)[:4000])\nPY\"",
+            "aggregated_output": "ModuleNotFoundError No module named 'astropy'\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f088f1c81988fdb4018576ac3fb",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f088f1c81988fdb4018576ac3fb",
+            "type": "web_search",
+            "query": "astropy io ascii html.py formats write ignored formats HTML tests github",
+            "action": {
+              "type": "search",
+              "query": "astropy io ascii html.py formats write ignored formats HTML tests github",
+              "queries": [
+                "astropy io ascii html.py formats write ignored formats HTML tests github",
+                "site:github.com/astropy/astropy astropy/io/ascii/html.py fill_values col.info.iter_str_vals"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f0c96548198ab6409e635c2038d",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f0c96548198ab6409e635c2038d",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f1071ac8198b2207fc7968ccc1f",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f1071ac8198b2207fc7968ccc1f",
+            "type": "web_search",
+            "query": "'def write' in https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/core.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f139fac819883b8cc213c49db07",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f139fac819883b8cc213c49db07",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_15",
+            "type": "agent_message",
+            "text": "I\u2019ve confirmed from Astropy\u2019s core writer path that normal ASCII writers call `data.str_vals()`, which applies `formats` before replacement. The HTML writer bypasses that helper and calls `col.info.iter_str_vals()` directly, which is the likely bug."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_16",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nfrom urllib.request import urlopen\nurl='https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/tests/test_html.py'\ntry:\n    with urlopen(url, timeout=10) as r:\n        data=r.read().decode()\n    print(data[:5000])\nexcept Exception as e:\n    print(type(e).__name__, e)\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_16",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nfrom urllib.request import urlopen\nurl='https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/tests/test_html.py'\ntry:\n    with urlopen(url, timeout=10) as r:\n        data=r.read().decode()\n    print(data[:5000])\nexcept Exception as e:\n    print(type(e).__name__, e)\nPY\"",
+            "aggregated_output": "URLError <urlopen error [Errno -3] Temporary failure in name resolution>\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f1e5aec81988757b4d310485c40",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f1e5aec81988757b4d310485c40",
+            "type": "web_search",
+            "query": "https://github.com/astropy/astropy/blob/main/astropy/io/ascii/html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f23e2848198afd7f368c6eb42ea",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f23e2848198afd7f368c6eb42ea",
+            "type": "web_search",
+            "query": "https://api.github.com/repos/astropy/astropy/contents/astropy/io/ascii/tests/test_html.py?ref=main",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f273ba08198b8386843131f39ef",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f273ba08198b8386843131f39ef",
+            "type": "web_search",
+            "query": "api.github.com/repos/astropy/astropy/contents/astropy/io/ascii/tests/test_html.py ref main",
+            "action": {
+              "type": "search",
+              "query": "api.github.com/repos/astropy/astropy/contents/astropy/io/ascii/tests/test_html.py ref main",
+              "queries": [
+                "api.github.com/repos/astropy/astropy/contents/astropy/io/ascii/tests/test_html.py ref main"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f3f5df4819892850a68fd8e615e",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f3f5df4819892850a68fd8e615e",
+            "type": "web_search",
+            "query": "'class BaseData'",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f41fb708198850331ec03eff0dd",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f41fb708198850331ec03eff0dd",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/core.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f442c54819891beff017d1b8716",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f442c54819891beff017d1b8716",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/core.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f46ed2c8198aa1ba9f5631691e9",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f46ed2c8198aa1ba9f5631691e9",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/main/astropy/io/ascii/core.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f5e093c8198bb7a55873d713cb9",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f5e093c8198bb7a55873d713cb9",
+            "type": "web_search",
+            "query": "\"ASCII table output to HTML does not support supplied formats\" astropy",
+            "action": {
+              "type": "search",
+              "query": "\"ASCII table output to HTML does not support supplied formats\" astropy",
+              "queries": [
+                "\"ASCII table output to HTML does not support supplied formats\" astropy",
+                "\"formats\" \"raw_html_cols\" \"iter_str_vals\" astropy html write"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f621b788198abfd9479f92e4b03",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f621b788198abfd9479f92e4b03",
+            "type": "web_search",
+            "query": "astropy 13453 formats html ascii table",
+            "action": {
+              "type": "search",
+              "query": "astropy 13453 formats html ascii table",
+              "queries": [
+                "astropy 13453 formats html ascii table"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f64cdb481988829b548615db76f",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f64cdb481988829b548615db76f",
+            "type": "web_search",
+            "query": "github astropy astropy 13453 html formats",
+            "action": {
+              "type": "search",
+              "query": "github astropy astropy 13453 html formats",
+              "queries": [
+                "github astropy astropy 13453 html formats"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f72aa488198981c0f5b00d5b39f",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f72aa488198981c0f5b00d5b39f",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/v5.1/astropy/io/ascii/tests/test_html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7487cc8198827d5ca3e90c47f6",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7487cc8198827d5ca3e90c47f6",
+            "type": "web_search",
+            "query": "raw.githubusercontent.com astropy astropy v5.1 astropy/io/ascii/tests/test_html.py",
+            "action": {
+              "type": "search",
+              "query": "raw.githubusercontent.com astropy astropy v5.1 astropy/io/ascii/tests/test_html.py",
+              "queries": [
+                "raw.githubusercontent.com astropy astropy v5.1 astropy/io/ascii/tests/test_html.py"
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7762e48198bf5cbc0291e6ed44",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7762e48198bf5cbc0291e6ed44",
+            "type": "web_search",
+            "query": "https://raw.githubusercontent.com/astropy/astropy/v5.1.0/astropy/io/ascii/tests/test_html.py",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7b8800819880ec8f3712147b4a",
+            "type": "web_search",
+            "query": "",
+            "action": {
+              "type": "other"
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "ws_0c0b965fa296e94e016a2a4f7b8800819880ec8f3712147b4a",
+            "type": "web_search",
+            "query": "\"def test_html\" \"astropy.io.ascii\" \"raw_html_cols\"",
+            "action": {
+              "type": "search",
+              "query": "\"def test_html\" \"astropy.io.ascii\" \"raw_html_cols\"",
+              "queries": [
+                "\"def test_html\" \"astropy.io.ascii\" \"raw_html_cols\"",
+                "\"raw_html_cols\" \"test_html\" \"astropy\" \"ascii\""
+              ]
+            }
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_31",
+            "type": "agent_message",
+            "text": "--- a/astropy/io/ascii/html.py\n+++ b/astropy/io/ascii/html.py\n@@ -348,12 +348,14 @@ class HTML(core.BaseReader):\n \n         cols = list(table.columns.values())\n \n         self.data.header.cols = cols\n+        self.data.cols = cols\n \n         if isinstance(self.data.fill_values, tuple):\n             self.data.fill_values = [self.data.fill_values]\n \n         self.data._set_fill_values(cols)\n+        self.data._set_col_formats()\n \n         lines = []\n \n         # Set HTML escaping to False for any column in the raw_html_cols input\n@@ -430,6 +432,7 @@ class HTML(core.BaseReader):\n                                 for i in range(span):\n                                     # Split up multicolumns into separate columns\n                                     new_col = Column([el[i] for el in col])\n+                                    new_col.info.format = col.info.format\n \n                                     new_col_iter_str_vals = self.fill_values(\n                                         col, new_col.info.iter_str_vals())"
+          }
+        },
+        {
+          "type": "turn.completed",
+          "usage": {
+            "input_tokens": 220278,
+            "cached_input_tokens": 148352,
+            "output_tokens": 7752,
+            "reasoning_output_tokens": 6021
+          }
+        }
+      ],
+      "usage": {
+        "input_tokens": 220278,
+        "cached_input_tokens": 148352,
+        "output_tokens": 7752,
+        "reasoning_output_tokens": 6021,
+        "prompt_tokens": 220278,
+        "completion_tokens": 7752
+      },
+      "argv": [
+        "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "--color",
+        "never",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "-c",
+        "model_reasoning_effort=\"xhigh\"",
+        "-o",
+        "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__baseline-replicate-v7__20260611-055642/scratch/astropy__astropy-13453/last_message.txt",
+        "-"
+      ],
+      "returncode": 0,
+      "duration_s": 203.7
+    }
+  ],
+  "wall_s": 203.7,
+  "finished_at": "2026-06-11T06:03:19Z"
+}

@@ -1,0 +1,387 @@
+{
+  "instance_id": "astropy__astropy-14096",
+  "model_patch": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ class SkyCoord(ShapedLikeNDArray):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If the attribute is defined on the class (for example as a property\n+        # on a subclass), then regular attribute access has already tried it\n+        # and caught an AttributeError.  Re-dispatch directly to avoid replacing\n+        # an AttributeError raised inside the descriptor with the fallback\n+        # SkyCoord \"missing attribute\" message for ``attr`` itself.\n+        if any(attr in cls.__dict__ for cls in type(self).__mro__):\n+            return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?\n--- /dev/null\n+++ b/astropy/coordinates/tests/test_skycoord_subclasses.py\n@@ -0,0 +1,22 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\n+import pytest\n+\n+from astropy.coordinates import SkyCoord\n+\n+\n+def test_subclass_property_preserves_inner_attribute_error():\n+    class CustomCoord(SkyCoord):\n+        @property\n+        def prop(self):\n+            return self.random_attr\n+\n+    coord = CustomCoord(\"00h42m30s\", \"+41d12m00s\", frame=\"icrs\")\n+\n+    with pytest.raises(AttributeError) as exc:\n+        coord.prop\n+\n+    message = str(exc.value)\n+\n+    assert \"random_attr\" in message\n+    assert \"prop\" not in message\n",
+  "error": null,
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "codex-cli",
+      "content": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ class SkyCoord(ShapedLikeNDArray):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If the attribute is defined on the class (for example as a property\n+        # on a subclass), then regular attribute access has already tried it\n+        # and caught an AttributeError.  Re-dispatch directly to avoid replacing\n+        # an AttributeError raised inside the descriptor with the fallback\n+        # SkyCoord \"missing attribute\" message for ``attr`` itself.\n+        if any(attr in cls.__dict__ for cls in type(self).__mro__):\n+            return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?\n--- /dev/null\n+++ b/astropy/coordinates/tests/test_skycoord_subclasses.py\n@@ -0,0 +1,21 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\n+import pytest\n+\n+from astropy.coordinates import SkyCoord\n+\n+\n+def test_subclass_property_preserves_inner_attribute_error():\n+    class CustomCoord(SkyCoord):\n+        @property\n+        def prop(self):\n+            return self.random_attr\n+\n+    coord = CustomCoord(\"00h42m30s\", \"+41d12m00s\", frame=\"icrs\")\n+\n+    with pytest.raises(AttributeError) as exc:\n+        coord.prop\n+\n+    message = str(exc.value)\n+\n+    assert \"random_attr\" in message\n+    assert \"prop\" not in message",
+      "events": [
+        {
+          "type": "thread.started",
+          "thread_id": "019eb54b-c72b-7f31-805b-a72049756e7d"
+        },
+        {
+          "type": "turn.started"
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_0",
+            "type": "agent_message",
+            "text": "I\u2019ll focus the patch on preserving the original `AttributeError` from subclass descriptors/properties, since the current `__getattr__` fallback is masking it as a missing outer attribute."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg \"__getattr__|SkyCoord\" astropy/coordinates/tests -n'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_1",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg \"__getattr__|SkyCoord\" astropy/coordinates/tests -n'",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 127,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg \"custom_coord|subclass|subclassed|SkyCoord\" astropy/coordinates/tests/test_sky_coord.py astropy/coordinates/tests -n'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_2",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'rg \"custom_coord|subclass|subclassed|SkyCoord\" astropy/coordinates/tests/test_sky_coord.py astropy/coordinates/tests -n'",
+            "aggregated_output": "/bin/bash: line 1: rg: command not found\n",
+            "exit_code": 127,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,220p' astropy/coordinates/tests/test_sky_coord.py\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_3",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"sed -n '1,220p' astropy/coordinates/tests/test_sky_coord.py\"",
+            "aggregated_output": "sed: can't read astropy/coordinates/tests/test_sky_coord.py: No such file or directory\n",
+            "exit_code": 2,
+            "status": "failed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_4",
+            "type": "agent_message",
+            "text": "`rg` is not installed here, so I\u2019m falling back to the basic shell tools available in the sandbox and looking for the coordinate test layout."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"grep -R \\\"class .*SkyCoord\\\\|subclass\\\\|__getattr__\\\" -n astropy/coordinates 2>/dev/null | head -120\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_5",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"grep -R \\\"class .*SkyCoord\\\\|subclass\\\\|__getattr__\\\" -n astropy/coordinates 2>/dev/null | head -120\"",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 3 -type f -name 'test_sky*' -o -name '*sky_coord*test*'\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_6",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find . -maxdepth 3 -type f -name 'test_sky*' -o -name '*sky_coord*test*'\"",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/coordinates -maxdepth 3 -type f -name '*test*' | head -80\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_7",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"find astropy/coordinates -maxdepth 3 -type f -name '*test*' | head -80\"",
+            "aggregated_output": "find: \u2018astropy/coordinates\u2019: No such file or directory\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_8",
+            "type": "agent_message",
+            "text": "The workspace visible to me does not include the `astropy/coordinates` tree from the prompt, so I\u2019m deriving the patch against the paths and line context you provided."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_9",
+            "type": "command_execution",
+            "command": "/bin/bash -lc pwd",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_9",
+            "type": "command_execution",
+            "command": "/bin/bash -lc pwd",
+            "aggregated_output": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__baseline-replicate-v7__20260611-055642/scratch/astropy__astropy-14096\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type f | head -80'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_10",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type f | head -80'",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type d | head -80'",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_11",
+            "type": "command_execution",
+            "command": "/bin/bash -lc 'find . -maxdepth 2 -type d | head -80'",
+            "aggregated_output": ".\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_12",
+            "type": "agent_message",
+            "text": "I\u2019ve narrowed this to Python\u2019s fallback attribute lookup: `SkyCoord.__getattr__` is being called for `prop` after the property getter raised `AttributeError` for `random_attr`. The patch needs to stop routing class-defined descriptors through the dynamic SkyCoord lookup."
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_13",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport sys\nclass A:\n    @property\n    def prop(self):\n        return self.nope\n    def __getattr__(self, attr):\n        print('__getattr__', attr, sys.exc_info())\n        raise AttributeError(attr)\ntry:\n    A().prop\nexcept Exception as e:\n    print('final', repr(e))\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_13",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nimport sys\nclass A:\n    @property\n    def prop(self):\n        return self.nope\n    def __getattr__(self, attr):\n        print('__getattr__', attr, sys.exc_info())\n        raise AttributeError(attr)\ntry:\n    A().prop\nexcept Exception as e:\n    print('final', repr(e))\nPY\"",
+            "aggregated_output": "__getattr__ nope (None, None, None)\n__getattr__ prop (None, None, None)\nfinal AttributeError('prop')\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_14",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    @property\n    def prop(self):\n        return self.nope\n    def __getattribute__(self, attr):\n        try:\n            return super().__getattribute__(attr)\n        except AttributeError:\n            cls = super().__getattribute__('__class__')\n            if any(attr in c.__dict__ for c in cls.__mro__):\n                raise\n            raise AttributeError(f\\\"missing {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    print(type(e), e)\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_14",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass A:\n    @property\n    def prop(self):\n        return self.nope\n    def __getattribute__(self, attr):\n        try:\n            return super().__getattribute__(attr)\n        except AttributeError:\n            cls = super().__getattribute__('__class__')\n            if any(attr in c.__dict__ for c in cls.__mro__):\n                raise\n            raise AttributeError(f\\\"missing {attr}\\\")\ntry:\n    A().prop\nexcept Exception as e:\n    print(type(e), e)\nPY\"",
+            "aggregated_output": "<class 'AttributeError'> missing nope\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_15",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\ntry:\n    import astropy, inspect\n    import astropy.coordinates.sky_coordinate as sc\n    print(astropy.__version__)\n    print(inspect.getsource(sc.SkyCoord.__getattr__)[:1200])\nexcept Exception as e:\n    print(type(e).__name__, e)\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_15",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\ntry:\n    import astropy, inspect\n    import astropy.coordinates.sky_coordinate as sc\n    print(astropy.__version__)\n    print(inspect.getsource(sc.SkyCoord.__getattr__)[:1200])\nexcept Exception as e:\n    print(type(e).__name__, e)\nPY\"",
+            "aggregated_output": "ModuleNotFoundError No module named 'astropy'\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.started",
+          "item": {
+            "id": "item_16",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass Base:\n    def __getattr__(self, attr):\n        if any(attr in c.__dict__ for c in self.__class__.__mro__):\n            print('class found')\n            return super().__getattribute__(attr)\n        raise AttributeError(attr)\nclass Sub(Base):\n    @property\n    def prop(self):\n        return self.nope\ntry:\n    Sub().prop\nexcept Exception as e:\n    print(type(e), e)\nPY\"",
+            "aggregated_output": "",
+            "exit_code": null,
+            "status": "in_progress"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_16",
+            "type": "command_execution",
+            "command": "/bin/bash -lc \"python - <<'PY'\nclass Base:\n    def __getattr__(self, attr):\n        if any(attr in c.__dict__ for c in self.__class__.__mro__):\n            print('class found')\n            return super().__getattribute__(attr)\n        raise AttributeError(attr)\nclass Sub(Base):\n    @property\n    def prop(self):\n        return self.nope\ntry:\n    Sub().prop\nexcept Exception as e:\n    print(type(e), e)\nPY\"",
+            "aggregated_output": "class found\n<class 'AttributeError'> nope\n",
+            "exit_code": 0,
+            "status": "completed"
+          }
+        },
+        {
+          "type": "item.completed",
+          "item": {
+            "id": "item_17",
+            "type": "agent_message",
+            "text": "--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -871,6 +871,14 @@ class SkyCoord(ShapedLikeNDArray):\n         Overrides getattr to return coordinates that this can be transformed\n         to, based on the alias attr in the primary transform graph.\n         \"\"\"\n+        # If the attribute is defined on the class (for example as a property\n+        # on a subclass), then regular attribute access has already tried it\n+        # and caught an AttributeError.  Re-dispatch directly to avoid replacing\n+        # an AttributeError raised inside the descriptor with the fallback\n+        # SkyCoord \"missing attribute\" message for ``attr`` itself.\n+        if any(attr in cls.__dict__ for cls in type(self).__mro__):\n+            return super().__getattribute__(attr)\n+\n         if \"_sky_coord_frame\" in self.__dict__:\n             if self._is_name(attr):\n                 return self  # Should this be a deepcopy of self?\n--- /dev/null\n+++ b/astropy/coordinates/tests/test_skycoord_subclasses.py\n@@ -0,0 +1,21 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\n+import pytest\n+\n+from astropy.coordinates import SkyCoord\n+\n+\n+def test_subclass_property_preserves_inner_attribute_error():\n+    class CustomCoord(SkyCoord):\n+        @property\n+        def prop(self):\n+            return self.random_attr\n+\n+    coord = CustomCoord(\"00h42m30s\", \"+41d12m00s\", frame=\"icrs\")\n+\n+    with pytest.raises(AttributeError) as exc:\n+        coord.prop\n+\n+    message = str(exc.value)\n+\n+    assert \"random_attr\" in message\n+    assert \"prop\" not in message"
+          }
+        },
+        {
+          "type": "turn.completed",
+          "usage": {
+            "input_tokens": 427641,
+            "cached_input_tokens": 388096,
+            "output_tokens": 11613,
+            "reasoning_output_tokens": 9219
+          }
+        }
+      ],
+      "usage": {
+        "input_tokens": 427641,
+        "cached_input_tokens": 388096,
+        "output_tokens": 11613,
+        "reasoning_output_tokens": 9219,
+        "prompt_tokens": 427641,
+        "completion_tokens": 11613
+      },
+      "argv": [
+        "/home/xc/.vscode/extensions/openai.chatgpt-26.602.71036-linux-x64/bin/linux-x86_64/codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "-s",
+        "read-only",
+        "--color",
+        "never",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "-c",
+        "model_reasoning_effort=\"xhigh\"",
+        "-o",
+        "/home/xc/Projects/SWE-bench/fvk_experiments/runs/astropy10__codex-5.5-xhigh__baseline-replicate-v7__20260611-055642/scratch/astropy__astropy-14096/last_message.txt",
+        "-"
+      ],
+      "returncode": 0,
+      "duration_s": 255.0
+    }
+  ],
+  "wall_s": 255.0,
+  "finished_at": "2026-06-11T06:12:37Z"
+}
