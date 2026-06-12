@@ -90,10 +90,60 @@ batch2 … batch5 (one per sitting).
 - For the phased arms, `report.md` has a **v1 → v2 transition table** (what the revise step
   changed) and a **claimed-vs-official** column (the agent's in-session score vs the real
   harness — they should agree).
-- **Contamination must be 0.** Each session is sealed (no web, no memory, no plugins, no
-  Skill tool) and the answer key lives outside the agent's reach; any session that reads the
-  key or leaks a hidden test name is **auto-invalidated** and flagged in the report. Check
-  `runs/<id>/audit/<iid>.json` if unsure.
+- **Audit alarms are NOT all real — do not read `solved X/9` until you've checked them.**
+  Sessions are sealed (no web, no memory, no plugins, no Skill tool) and the answer key
+  lives outside the agent's reach; the audit (`runs/<id>/audit/<iid>.json`) still
+  auto-blanks any session it flags, but **two false-positive classes are known**. Follow
+  the mandatory procedure in **"Audit alarms: the without-audit scoring policy"** below.
+
+## Audit alarms: the without-audit scoring policy (owner decision 2026-06-12)
+
+The transcript audit has **two known false-positive classes**, found live on batch3. The
+rule fix is deferred to a dedicated session — **do NOT edit the audit code mid-campaign**
+(arms must all be graded by identical code).
+
+1. **F2P name public at base.** The rule "hidden FAIL_TO_PASS name in the transcript ⇒
+   leak" assumes hidden test names don't exist publicly — false when the instance's hidden
+   test_patch *modifies an existing public test* (pylint-8898: its only F2P test exists
+   verbatim at the base commit) or adds parameters to one (astropy-14369, pylint-4551).
+   Reading the public test suite — allowed and necessary — trips the wire.
+2. **Reads of the agent's own score log.** Any Read-tool access to a path containing
+   `/private_eval/` is treated as an answer-key read, but that dir holds only
+   `eval_log.jsonl`, the aggregate-only score log the evaluator writes *for* the agent.
+   (`bash cat` doesn't trip it; the Read tool does — pure session luck.)
+
+**Policy: batch scores are reported "without-audit".** Run the pipeline UNMODIFIED (the
+audit still logs and still auto-blanks; its artifacts stay untouched as provenance). Then,
+for EVERY auto-blanked instance (`final=contaminated` in the run output):
+
+1. Read `runs/<id>/audit/<iid>.json` and confirm the evidence is one of the two classes
+   above. **If it's anything else — a read of the real key (`row.json`), network reach,
+   denied-tool use — STOP and escalate to the owner. Do not merge.**
+2. Salvage the agent's final patch from its workspace
+   (`~/.cache/fvk-workspaces/<run-dir-name>/<iid>/patches/`; baseline arm:
+   `solution.patch`, phased arms: the final patch named in the workspace's
+   `reports/final_report.md`, typically `solution_v2.patch`) into `runs/<id>/salvaged/`.
+3. Re-grade it with the official harness. Write a one-line
+   `runs/<id>/salvaged/predictions.jsonl`
+   (`{"instance_id": "<iid>", "model_name_or_path": "salvage-regrade", "model_patch": "<patch>"}`),
+   then from the repo root:
+   ```bash
+   .venv/bin/python -m swebench.harness.run_evaluation \
+     --dataset_name princeton-nlp/SWE-bench_Verified --split test \
+     --predictions_path fvk_experiments/runs/<id>/salvaged/predictions.jsonl \
+     --instance_ids <iid> --max_workers 1 --timeout 1800 --cache_level instance \
+     --run_id salvage__<short-label> --report_dir fvk_experiments/runs/<id>/salvaged
+   ```
+   (Known quirk: the report JSON lands in the CWD — move it into `salvaged/`.)
+4. **Merge** the re-grade into the arm's reported score and document the case (mechanism,
+   patch file, re-grade verdict) in `runs/<id>/salvaged/README.md`. The arm's reported
+   number = pipeline `solved X/9` **+ restored resolves**, labeled **without-audit**; the
+   pipeline's own `report.md`/`eval/` are never edited.
+
+The seal itself (web denied, truncated history, key outside the workspace) is unchanged —
+actual cheating is still prevented; we've only demoted an over-eager *detector* from gate
+to log. All transcripts are preserved verbatim, so the corrected audit can be re-applied
+retroactively to confirm these scores in the fix-session.
 
 ## Gotchas
 
