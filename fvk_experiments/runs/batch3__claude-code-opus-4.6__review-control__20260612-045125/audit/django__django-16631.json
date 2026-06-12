@@ -1,0 +1,73 @@
+{
+  "contaminated": true,
+  "contamination_evidence": [
+    "row read: Read: /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-16631/private_eval/eval_log.jsonl",
+    "row read: Bash: ROW=/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/django__django-16631/row.json && python3 -c \"\nimport json\nwith open('$ROW') as f:\n    row = json.load(f)\nev = row.get('_staging', {}).get('eval', {})\n# Extract image name only (no test_patch content)\nprint('image_candidates:', ev.get('image_candidates'))\nprint('parser:', ev.get('parser'))\nprint('timeout_s:', ev.get('timeout_s'))\n# Show eval_script first 10 lines only (before",
+    "row read: Bash: ROW=/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/django__django-16631/row.json && python3 -c \"\nimport json\nwith open('$ROW') as f:\n    row = json.load(f)\nev = row.get('_staging', {}).get('eval', {})\nscript = ev.get('eval_script', '')\nlines = script.split('\\n')\n# Show all lines EXCEPT those between EOF markers (the test_patch content)\nin_patch = False\nfor i, l in enumerate(lines):\n    if l.strip().startswith('EOF'):\n       ",
+    "row read: Read: /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-16631/private_eval/eval_log.jsonl"
+  ],
+  "denied_tool_attempts": [],
+  "network_bash_commands": [],
+  "installer_bash_commands": [
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=5.0 && uv venv --python 3.11 .venv 2>&1 | tail -5",
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=5.0 && source .venv/bin/activate && pip install -U pip setuptools wheel 2>&1 | tail -3 && (cd repo && pip install -e .) 2>&1 | tail -5",
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=5.0 && .venv/bin/python -m pip install -U pip setuptools wheel 2>&1 | tail -3",
+    "uv venv --python 3.11 .venv 2>&1 | tail -5",
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=5.0 && .venv/bin/python -m pip install -U pip setuptools wheel 2>&1 | tail -3 && (cd repo && ../.venv/bin/python -m pip install -e .) 2>&1 | tail -5"
+  ],
+  "docker_bash_commands": [],
+  "private_row_reads": [
+    "Read: /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-16631/private_eval/eval_log.jsonl",
+    "Bash: ROW=/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/django__django-16631/row.json && python3 -c \"\nimport json\nwith open('$ROW') as f:\n    row = json.load(f)\nev = row.get('_staging', {}).get('eval', {})\n# Extract image name only (no test_patch content)\nprint('image_candidates:', ev.get('image_candidates'))\nprint('parser:', ev.get('parser'))\nprint('timeout_s:', ev.get('timeout_s'))\n# Show eval_script first 10 lines only (before",
+    "Bash: ROW=/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/django__django-16631/row.json && python3 -c \"\nimport json\nwith open('$ROW') as f:\n    row = json.load(f)\nev = row.get('_staging', {}).get('eval', {})\nscript = ev.get('eval_script', '')\nlines = script.split('\\n')\n# Show all lines EXCEPT those between EOF markers (the test_patch content)\nin_patch = False\nfor i, l in enumerate(lines):\n    if l.strip().startswith('EOF'):\n       ",
+    "Read: /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-16631/private_eval/eval_log.jsonl"
+  ],
+  "private_eval_script_edits": [],
+  "private_eval_invocations": 3,
+  "f2p_leaks_before_eval": [],
+  "f2p_mentions_total": 0,
+  "f2p_mentions": [],
+  "num_turns": 155,
+  "duration_ms": 3640125,
+  "usage": {
+    "input_tokens": 150,
+    "cache_creation_input_tokens": 266674,
+    "cache_read_input_tokens": 12044709,
+    "output_tokens": 153038,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 266674,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 395,
+        "cache_read_input_tokens": 117824,
+        "cache_creation_input_tokens": 1679,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 1679
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "total_cost_usd": 11.892057249999999,
+  "counts": {
+    "denied_tool_attempts": 0,
+    "network_bash_commands": 0,
+    "installer_bash_commands": 5,
+    "docker_bash_commands": 0,
+    "private_row_reads": 4,
+    "private_eval_script_edits": 0,
+    "f2p_leaks_before_eval": 0
+  },
+  "session_status": "ok"
+}

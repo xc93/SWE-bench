@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-15503",
+  "model_patch": "diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py\nindex fdca700..b85f196 100644\n--- a/django/db/models/fields/json.py\n+++ b/django/db/models/fields/json.py\n@@ -191,13 +191,16 @@ class HasKeyLookup(PostgresOperatorLookup):\n         for key in rhs:\n             if isinstance(key, KeyTransform):\n                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)\n+                rhs_json_path = compile_json_path(\n+                    rhs_key_transforms, include_root=False\n+                )\n             else:\n-                rhs_key_transforms = [key]\n+                rhs_json_path = \".%s\" % json.dumps(str(key))\n             rhs_params.append(\n                 \"%s%s\"\n                 % (\n                     lhs_json_path,\n-                    compile_json_path(rhs_key_transforms, include_root=False),\n+                    rhs_json_path,\n                 )\n             )\n         # Add condition for each key.\n@@ -387,25 +390,22 @@ class KeyTransformTextLookupMixin:\n class KeyTransformIsNull(lookups.IsNull):\n     # key__isnull=False is the same as has_key='key'\n     def as_oracle(self, compiler, connection):\n-        sql, params = HasKey(\n-            self.lhs.lhs,\n-            self.lhs.key_name,\n-        ).as_oracle(compiler, connection)\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        sql = \"JSON_EXISTS(%s, '%s')\" % (lhs, json_path)\n         if not self.rhs:\n-            return sql, params\n+            return sql, tuple(params)\n         # Column doesn't have a key or IS NULL.\n-        lhs, lhs_params, _ = self.lhs.preprocess_lhs(compiler, connection)\n-        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(lhs_params)\n+        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) * 2\n \n     def as_sqlite(self, compiler, connection):\n-        template = \"JSON_TYPE(%s, %%s) IS NULL\"\n-        if not self.rhs:\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        if self.rhs:\n+            template = \"JSON_TYPE(%s, %%s) IS NULL\"\n+        else:\n             template = \"JSON_TYPE(%s, %%s) IS NOT NULL\"\n-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(\n-            compiler,\n-            connection,\n-            template=template,\n-        )\n+        return template % lhs, tuple(params) + (json_path,)\n \n \n class KeyTransformIn(lookups.In):\n",
+  "model_patch_v1": "diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py\nindex fdca700..12950db 100644\n--- a/django/db/models/fields/json.py\n+++ b/django/db/models/fields/json.py\n@@ -191,13 +191,16 @@ class HasKeyLookup(PostgresOperatorLookup):\n         for key in rhs:\n             if isinstance(key, KeyTransform):\n                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)\n+                rhs_json_path = compile_json_path(\n+                    rhs_key_transforms, include_root=False\n+                )\n             else:\n-                rhs_key_transforms = [key]\n+                rhs_json_path = \".%s\" % json.dumps(key)\n             rhs_params.append(\n                 \"%s%s\"\n                 % (\n                     lhs_json_path,\n-                    compile_json_path(rhs_key_transforms, include_root=False),\n+                    rhs_json_path,\n                 )\n             )\n         # Add condition for each key.\n@@ -387,25 +390,22 @@ class KeyTransformTextLookupMixin:\n class KeyTransformIsNull(lookups.IsNull):\n     # key__isnull=False is the same as has_key='key'\n     def as_oracle(self, compiler, connection):\n-        sql, params = HasKey(\n-            self.lhs.lhs,\n-            self.lhs.key_name,\n-        ).as_oracle(compiler, connection)\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        sql = \"JSON_EXISTS(%s, '%s')\" % (lhs, json_path)\n         if not self.rhs:\n-            return sql, params\n+            return sql, tuple(params)\n         # Column doesn't have a key or IS NULL.\n-        lhs, lhs_params, _ = self.lhs.preprocess_lhs(compiler, connection)\n-        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(lhs_params)\n+        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) * 2\n \n     def as_sqlite(self, compiler, connection):\n-        template = \"JSON_TYPE(%s, %%s) IS NULL\"\n-        if not self.rhs:\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        if self.rhs:\n+            template = \"JSON_TYPE(%s, %%s) IS NULL\"\n+        else:\n             template = \"JSON_TYPE(%s, %%s) IS NOT NULL\"\n-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(\n-            compiler,\n-            connection,\n-            template=template,\n-        )\n+        return template % lhs, tuple(params) + (json_path,)\n \n \n class KeyTransformIn(lookups.In):\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1079.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923/django__django-15503",
+  "workspace_manifest_sha256": "921b07148806a4a3f4d9e84ffb463b49bfb9a8e4f471b83f0809c08b1382f78a",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 79,
+      "duration_ms": 1077072,
+      "total_cost_usd": 4.732514200000001,
+      "usage": {
+        "input_tokens": 74,
+        "cache_creation_input_tokens": 102717,
+        "cache_read_input_tokens": 5310961,
+        "output_tokens": 51402,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 102717,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 263,
+            "cache_read_input_tokens": 117950,
+            "cache_creation_input_tokens": 1699,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1699
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 74,
+        "completion_tokens": 51402
+      }
+    }
+  ],
+  "wall_s": 1086.1,
+  "finished_at": "2026-06-12T07:38:48Z"
+}

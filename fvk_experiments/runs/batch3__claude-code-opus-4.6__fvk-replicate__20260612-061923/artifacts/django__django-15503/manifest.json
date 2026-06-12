@@ -1,0 +1,25 @@
+{
+  "instance_id": "django__django-15503",
+  "arm_kind": "fvk-replicate",
+  "built_at": "2026-06-12T07:20:43Z",
+  "base_commit": "859a87d873ce7152af73ab851653b4e1c3ffea4c",
+  "repo_source": "https://github.com/django/django.git",
+  "repo_local_head": "05ef59166b5b11230cdaf3d47c7b5a3d20856cee",
+  "venv": {
+    "python": null,
+    "spec_source": null
+  },
+  "prebuilt_env": false,
+  "grading_backend": "docker",
+  "protocol_version": 2,
+  "instance_image": "swebench/sweb.eval.x86_64.django_1776_django-15503:latest",
+  "kit_commit": "d0d07bad2d500467f7e1e9ccc4a3aa2af638a38d",
+  "kit_dirty": false,
+  "staged": {
+    "benchmark/PROMPT.md": "9e19c950e961008a6bfde2951148b24b9009d13e3ddd83cc24a20314bcc08e31",
+    "benchmark/public_instance.json": "8a72c052bd081a1ecd0cdfe7997bc86f074e91c5c878b11d0ade51880bf514d4",
+    "scripts/private_eval.py": "c26ac348dac1d96f9f366633c50a5a0b3d06c7d6a483bb7df62404f625dc9048"
+  },
+  "row_path": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923/private/django__django-15503/row.json",
+  "row_sha256": "b1650c0bbdc466ab743fcf73d57042f36244793bb50e32d0d2c085f81f89926e"
+}

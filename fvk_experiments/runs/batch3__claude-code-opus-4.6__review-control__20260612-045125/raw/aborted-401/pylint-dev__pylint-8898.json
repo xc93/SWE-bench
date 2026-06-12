@@ -1,0 +1,52 @@
+{
+  "instance_id": "pylint-dev__pylint-8898",
+  "model_patch": "",
+  "model_patch_v1": "",
+  "final_source": "empty",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "cli_error",
+  "error": "session cli_error: rc=1",
+  "attempts": [
+    {
+      "returncode": 1,
+      "timed_out": false,
+      "duration_s": 5.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/pylint-dev__pylint-8898",
+  "workspace_manifest_sha256": "35ea55e7bda999c2b9e43a04f18f1b79925ae649c645d538abda20ddd1f6b9de",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 1,
+      "duration_ms": 3202,
+      "total_cost_usd": 0,
+      "usage": {
+        "input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 0,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 0,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "",
+        "iterations": [],
+        "speed": "standard",
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  ],
+  "wall_s": 10.9,
+  "finished_at": "2026-06-12T08:37:23Z"
+}

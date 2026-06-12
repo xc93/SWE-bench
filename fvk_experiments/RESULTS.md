@@ -9,7 +9,7 @@ official SWE-bench docker harness; **solved** = all FAIL_TO_PASS + PASS_TO_PASS 
 Both arms always share model, instances, and sampling config — the only difference is the
 FVK system prompt. Methodology details and caveats: [DESIGN.md](DESIGN.md).
 
-_Last regenerated: 2026-06-12 00:46 UTC (auto-generated — `run.py results` to refresh)._
+_Last regenerated: 2026-06-12 11:36 UTC (auto-generated — `run.py results` to refresh)._
 
 ## Pair comparisons
 
@@ -27,6 +27,9 @@ _Last regenerated: 2026-06-12 00:46 UTC (auto-generated — `run.py results` to 
 - **baseline: 2/10 vs fvk-v4: 4/10 (Δ +2)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__fvk-v4__20260610-125349.md)
 - **baseline: 2/10 vs jointembed-v6: 4/10 (Δ +2)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__jointembed-v6__20260610-141549.md)
 - **baseline: 2/10 vs review-v5: 3/10 (Δ +1)** — `deepseek-v4-pro`, astropy10 — [per-instance comparison](reports/pair__astropy10__ds-v4-pro-think__baseline__20260610-115611__VS__astropy10__ds-v4-pro-think__review-v5__20260610-130805.md)
+- **baseline: 2/9 vs fvk-replicate: 5/9 (Δ +3)** — `claude-code-opus-4.6`, batch3 — [per-instance comparison](reports/pair__batch3__claude-code-opus-4.6__baseline__20260612-031221__VS__batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923.md)
+- **baseline: 2/9 vs review-control: 4/9 (Δ +2)** — `claude-code-opus-4.6`, batch3 — [per-instance comparison](reports/pair__batch3__claude-code-opus-4.6__baseline__20260612-031221__VS__batch3__claude-code-opus-4.6__review-control__20260612-045125.md)
+- **review-control: 4/9 vs fvk-replicate: 5/9 (Δ +1)** — `claude-code-opus-4.6`, batch3 — [per-instance comparison](reports/pair__batch3__claude-code-opus-4.6__review-control__20260612-045125__VS__batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923.md)
 - **baseline: 7/9 vs fvk-replicate: 7/9 (Δ +0)** — `claude-code-opus-4.6`, rest9 — [per-instance comparison](reports/pair__rest9__claude-code-opus-4.6__baseline__20260611-122549__VS__rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449.md)
 - **baseline: 7/9 vs review-control: 7/9 (Δ +0)** — `claude-code-opus-4.6`, rest9 — [per-instance comparison](reports/pair__rest9__claude-code-opus-4.6__baseline__20260611-122549__VS__rest9__claude-code-opus-4.6__review-control__20260611-134910.md)
 - **review-control: 7/9 vs fvk-replicate: 7/9 (Δ +0)** — `claude-code-opus-4.6`, rest9 — [per-instance comparison](reports/pair__rest9__claude-code-opus-4.6__review-control__20260611-134910__VS__rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449.md)
@@ -41,6 +44,9 @@ _Last regenerated: 2026-06-12 00:46 UTC (auto-generated — `run.py results` to 
 | [`rest9__claude-code-opus-4.6__baseline__20260611-122549`](runs/rest9__claude-code-opus-4.6__baseline__20260611-122549/report.md) | 2026-06-11 12:25 | `claude-code-opus-4.6` | baseline | `v1` (sha `0720aa20c937`) | **7 / 9** |
 | [`rest9__claude-code-opus-4.6__review-control__20260611-134910`](runs/rest9__claude-code-opus-4.6__review-control__20260611-134910/report.md) | 2026-06-11 13:49 | `claude-code-opus-4.6` | review-control | `v1` (sha `5a53d6728d17`) | **7 / 9** |
 | [`rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449`](runs/rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449/report.md) | 2026-06-11 16:34 | `claude-code-opus-4.6` | fvk-replicate | `v1` (sha `b76db2120bf9`) | **7 / 9** |
+| [`batch3__claude-code-opus-4.6__baseline__20260612-031221`](runs/batch3__claude-code-opus-4.6__baseline__20260612-031221/report.md) | 2026-06-12 03:12 | `claude-code-opus-4.6` | baseline | `v2` (sha `1aa4dad51826`) | **2 / 9** |
+| [`batch3__claude-code-opus-4.6__review-control__20260612-045125`](runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/report.md) | 2026-06-12 08:42 | `claude-code-opus-4.6` | review-control | `v2` (sha `205fd82a9748`) | **4 / 9** |
+| [`batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923`](runs/batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923/report.md) | 2026-06-12 08:42 | `claude-code-opus-4.6` | fvk-replicate | `v2` (sha `d225f92797d9`) | **5 / 9** |
 | [`astropy10__codex-5.5-xhigh__baseline__20260611-042659`](runs/astropy10__codex-5.5-xhigh__baseline__20260611-042659/report.md) | 2026-06-11 04:27 | `codex-5.5` | baseline | — | **8 / 10** |
 | [`astropy10__codex-5.5-xhigh__fvk-v4__20260611-042702`](runs/astropy10__codex-5.5-xhigh__fvk-v4__20260611-042702/report.md) | 2026-06-11 04:27 | `codex-5.5` | fvk-v4 | `v4` (sha `e9d27c533914`) | **7 / 10** |
 | [`astropy10__codex-5.5-xhigh__review-v5__20260611-044140`](runs/astropy10__codex-5.5-xhigh__review-v5__20260611-044140/report.md) | 2026-06-11 04:41 | `codex-5.5` | review-v5 | `v5` (sha `09becca148f3`) | **5 / 10** |

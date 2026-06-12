@@ -1,0 +1,64 @@
+{
+  "instance_id": "pylint-dev__pylint-4551",
+  "model_patch": "diff --git a/pylint/pyreverse/diagrams.py b/pylint/pyreverse/diagrams.py\nindex bf9f67a..93b7016 100644\n--- a/pylint/pyreverse/diagrams.py\n+++ b/pylint/pyreverse/diagrams.py\n@@ -92,11 +92,34 @@ class ClassDiagram(Figure, FilterMixIn):\n             if not self.show_attr(node_name):\n                 continue\n             names = self.class_names(associated_nodes)\n+            if not names:\n+                names = self.get_annotation_label(node, node_name)\n             if names:\n                 node_name = \"{} : {}\".format(node_name, \", \".join(names))\n             attrs.append(node_name)\n         return sorted(attrs)\n \n+    @staticmethod\n+    def get_annotation_label(node, attr_name):\n+        \"\"\"Get type annotation as display label for an attribute.\"\"\"\n+        for assign in node.instance_attrs.get(attr_name, []):\n+            if isinstance(assign.parent, astroid.AnnAssign) and assign.parent.annotation:\n+                return [assign.parent.annotation.as_string()]\n+            if isinstance(assign.parent, astroid.Assign) and isinstance(\n+                assign.parent.value, astroid.Name\n+            ):\n+                func = assign.frame()\n+                if isinstance(func, astroid.FunctionDef):\n+                    for i, arg in enumerate(func.args.args or []):\n+                        if arg.name == assign.parent.value.name:\n+                            anns = func.args.annotations\n+                            if anns and i < len(anns) and anns[i]:\n+                                return [anns[i].as_string()]\n+        for assign in node.locals.get(attr_name, []):\n+            if isinstance(assign.parent, astroid.AnnAssign) and assign.parent.annotation:\n+                return [assign.parent.annotation.as_string()]\n+        return []\n+\n     def get_methods(self, node):\n         \"\"\"return visible methods\"\"\"\n         methods = [\ndiff --git a/pylint/pyreverse/inspector.py b/pylint/pyreverse/inspector.py\nindex 8fa1220..d099b8a 100644\n--- a/pylint/pyreverse/inspector.py\n+++ b/pylint/pyreverse/inspector.py\n@@ -162,10 +162,21 @@ class Linker(IdGeneratorMixIn, utils.LocalsVisitor):\n             baseobj.specializations = specializations\n         # resolve instance attributes\n         node.instance_attrs_type = collections.defaultdict(list)\n-        for assignattrs in node.instance_attrs.values():\n+        for attr_name, assignattrs in node.instance_attrs.items():\n             for assignattr in assignattrs:\n                 if not isinstance(assignattr, astroid.Unknown):\n                     self.handle_assignattr_type(assignattr, node)\n+                elif isinstance(assignattr.parent, astroid.AnnAssign):\n+                    ann = assignattr.parent.annotation\n+                    if ann:\n+                        try:\n+                            values = set(ann.infer())\n+                            current = set(node.instance_attrs_type[attr_name])\n+                            node.instance_attrs_type[attr_name] = list(\n+                                current | values\n+                            )\n+                        except astroid.InferenceError:\n+                            pass\n         # resolve implemented interface\n         try:\n             node.implements = list(interfaces(node, self.inherited_interfaces))\n@@ -223,12 +234,50 @@ class Linker(IdGeneratorMixIn, utils.LocalsVisitor):\n         except astroid.InferenceError:\n             pass\n \n+        if isinstance(node.parent, astroid.AnnAssign) and node.parent.annotation:\n+            try:\n+                if not hasattr(frame, \"locals_type\"):\n+                    return\n+                ann_values = set(node.parent.annotation.infer())\n+                current = set(frame.locals_type[node.name])\n+                frame.locals_type[node.name] = list(current | ann_values)\n+            except astroid.InferenceError:\n+                pass\n+\n     @staticmethod\n     def handle_assignattr_type(node, parent):\n         \"\"\"handle an astroid.assignattr node\n \n         handle instance_attrs_type\n         \"\"\"\n+        if isinstance(node.parent, astroid.AnnAssign) and node.parent.annotation:\n+            try:\n+                values = set(node.parent.annotation.infer())\n+                parent.instance_attrs_type[node.attrname] = list(values)\n+                return\n+            except astroid.InferenceError:\n+                pass\n+\n+        if isinstance(node.parent, astroid.Assign) and isinstance(\n+            node.parent.value, astroid.Name\n+        ):\n+            func = node.frame()\n+            if isinstance(func, astroid.FunctionDef):\n+                param_name = node.parent.value.name\n+                for i, arg in enumerate(func.args.args or []):\n+                    if arg.name == param_name:\n+                        annotations = func.args.annotations\n+                        if annotations and i < len(annotations) and annotations[i]:\n+                            try:\n+                                values = set(annotations[i].infer())\n+                                parent.instance_attrs_type[node.attrname] = list(\n+                                    values\n+                                )\n+                                return\n+                            except astroid.InferenceError:\n+                                pass\n+                        break\n+\n         try:\n             values = set(node.infer())\n             current = set(parent.instance_attrs_type[node.attrname])\ndiff --git a/pylint/pyreverse/writer.py b/pylint/pyreverse/writer.py\nindex 0d80bb9..3b285d3 100644\n--- a/pylint/pyreverse/writer.py\n+++ b/pylint/pyreverse/writer.py\n@@ -82,6 +82,20 @@ class DiagramWriter:\n                 **self.association_edges,\n             )\n \n+    @staticmethod\n+    def _get_method_arguments(func):\n+        \"\"\"Get method arguments formatted with type annotations.\"\"\"\n+        args = []\n+        for i, arg in enumerate(func.args.args or []):\n+            if arg.name == \"self\":\n+                continue\n+            arg_str = arg.name\n+            annotations = func.args.annotations\n+            if annotations and i < len(annotations) and annotations[i]:\n+                arg_str = \"{}: {}\".format(arg.name, annotations[i].as_string())\n+            args.append(arg_str)\n+        return args\n+\n     def set_printer(self, file_name, basename):\n         \"\"\"set printer\"\"\"\n         raise NotImplementedError\n@@ -134,11 +148,11 @@ class DotWriter(DiagramWriter):\n         if not self.config.only_classnames:\n             label = r\"{}|{}\\l|\".format(label, r\"\\l\".join(obj.attrs))\n             for func in obj.methods:\n-                if func.args.args:\n-                    args = [arg.name for arg in func.args.args if arg.name != \"self\"]\n-                else:\n-                    args = []\n-                label = r\"{}{}({})\\l\".format(label, func.name, \", \".join(args))\n+                args = self._get_method_arguments(func)\n+                method_sig = \"{}({})\".format(func.name, \", \".join(args))\n+                if func.returns:\n+                    method_sig += \" -> {}\".format(func.returns.as_string())\n+                label = r\"{}{}\\l\".format(label, method_sig)\n             label = \"{%s}\" % label\n         if is_exception(obj.node):\n             return dict(fontcolor=\"red\", label=label, shape=\"record\")\n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1203.9,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/pylint-dev__pylint-4551",
+  "workspace_manifest_sha256": "72b51223e537f638f733a877a56c4f8511c79819d26afcf3051e63481f5527b7",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 67,
+      "duration_ms": 1201523,
+      "total_cost_usd": 4.409460549999999,
+      "usage": {
+        "input_tokens": 59,
+        "cache_creation_input_tokens": 96902,
+        "cache_read_input_tokens": 4403211,
+        "output_tokens": 53922,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 96902,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 112,
+            "cache_read_input_tokens": 113541,
+            "cache_creation_input_tokens": 293,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 293
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 59,
+        "completion_tokens": 53922
+      }
+    }
+  ],
+  "wall_s": 1221.6,
+  "finished_at": "2026-06-12T04:43:35Z"
+}

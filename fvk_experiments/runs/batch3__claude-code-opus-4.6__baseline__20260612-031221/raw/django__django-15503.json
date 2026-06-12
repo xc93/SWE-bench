@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-15503",
+  "model_patch": "diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py\nindex fdca700..7152e23 100644\n--- a/django/db/models/fields/json.py\n+++ b/django/db/models/fields/json.py\n@@ -191,14 +191,13 @@ class HasKeyLookup(PostgresOperatorLookup):\n         for key in rhs:\n             if isinstance(key, KeyTransform):\n                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)\n+                rhs_json_path = compile_json_path(\n+                    rhs_key_transforms, include_root=False\n+                )\n             else:\n-                rhs_key_transforms = [key]\n+                rhs_json_path = \".%s\" % json.dumps(key)\n             rhs_params.append(\n-                \"%s%s\"\n-                % (\n-                    lhs_json_path,\n-                    compile_json_path(rhs_key_transforms, include_root=False),\n-                )\n+                \"%s%s\" % (lhs_json_path, rhs_json_path)\n             )\n         # Add condition for each key.\n         if self.logical_operator:\n@@ -387,25 +386,21 @@ class KeyTransformTextLookupMixin:\n class KeyTransformIsNull(lookups.IsNull):\n     # key__isnull=False is the same as has_key='key'\n     def as_oracle(self, compiler, connection):\n-        sql, params = HasKey(\n-            self.lhs.lhs,\n-            self.lhs.key_name,\n-        ).as_oracle(compiler, connection)\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        sql = \"JSON_EXISTS(%s, '%s')\" % (lhs, json_path)\n         if not self.rhs:\n-            return sql, params\n-        # Column doesn't have a key or IS NULL.\n-        lhs, lhs_params, _ = self.lhs.preprocess_lhs(compiler, connection)\n-        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(lhs_params)\n+            return sql, tuple(params)\n+        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) * 2\n \n     def as_sqlite(self, compiler, connection):\n-        template = \"JSON_TYPE(%s, %%s) IS NULL\"\n-        if not self.rhs:\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        if self.rhs:\n+            template = \"JSON_TYPE(%s, %%s) IS NULL\"\n+        else:\n             template = \"JSON_TYPE(%s, %%s) IS NOT NULL\"\n-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(\n-            compiler,\n-            connection,\n-            template=template,\n-        )\n+        return template % lhs, tuple(params) + (json_path,)\n \n \n class KeyTransformIn(lookups.In):\n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 789.6,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/django__django-15503",
+  "workspace_manifest_sha256": "5c28866310d81547b880e68c697c30dd70c2e5e249d43eb2816f49509c213837",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 42,
+      "duration_ms": 788802,
+      "total_cost_usd": 2.340443450000001,
+      "usage": {
+        "input_tokens": 40,
+        "cache_creation_input_tokens": 61788,
+        "cache_read_input_tokens": 2025451,
+        "output_tokens": 31937,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 61788,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 307,
+            "cache_read_input_tokens": 79078,
+            "cache_creation_input_tokens": 191,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 191
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 40,
+        "completion_tokens": 31937
+      }
+    }
+  ],
+  "wall_s": 820.8,
+  "finished_at": "2026-06-12T03:38:36Z"
+}

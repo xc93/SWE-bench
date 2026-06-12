@@ -1,0 +1,66 @@
+{
+  "instance_id": "pylint-dev__pylint-8898",
+  "model_patch": "",
+  "model_patch_v1": "diff --git a/pylint/config/argument.py b/pylint/config/argument.py\nindex 30a5fd1..908c0cf 100644\n--- a/pylint/config/argument.py\n+++ b/pylint/config/argument.py\n@@ -114,11 +114,39 @@ def _regex_transformer(value: str) -> Pattern[str]:\n def _regexp_csv_transfomer(value: str) -> Sequence[Pattern[str]]:\n     \"\"\"Transforms a comma separated list of regular expressions.\"\"\"\n     patterns: list[Pattern[str]] = []\n-    for pattern in _csv_transformer(value):\n+    for pattern in _regexp_csv_split(value):\n         patterns.append(_regex_transformer(pattern))\n     return patterns\n \n \n+def _regexp_csv_split(value: str) -> list[str]:\n+    \"\"\"Split a comma-separated string of regular expressions.\n+\n+    Commas inside curly braces (e.g. {1,3}) are not treated as separators.\n+    \"\"\"\n+    parts: list[str] = []\n+    current: list[str] = []\n+    brace_depth = 0\n+    for char in value:\n+        if char == \"{\":\n+            brace_depth += 1\n+            current.append(char)\n+        elif char == \"}\" and brace_depth > 0:\n+            brace_depth -= 1\n+            current.append(char)\n+        elif char == \",\" and brace_depth == 0:\n+            part = \"\".join(current).strip()\n+            if part:\n+                parts.append(part)\n+            current = []\n+        else:\n+            current.append(char)\n+    part = \"\".join(current).strip()\n+    if part:\n+        parts.append(part)\n+    return parts\n+\n+\n def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:\n     \"\"\"Transforms a comma separated list of regular expressions paths.\"\"\"\n     patterns: list[Pattern[str]] = []\n",
+  "final_source": "contaminated",
+  "contaminated": true,
+  "contamination_evidence": [
+    "f2p name before eval: test_csv_regex_error"
+  ],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": "contaminated: f2p name before eval: test_csv_regex_error",
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 386.3,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/pylint-dev__pylint-8898",
+  "workspace_manifest_sha256": "be9206aef0e599404e5ee9b75882b179092223da95833bb804417e1d2b95f2df",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 54,
+      "duration_ms": 384272,
+      "total_cost_usd": 1.7899082499999996,
+      "usage": {
+        "input_tokens": 48,
+        "cache_creation_input_tokens": 47729,
+        "cache_read_input_tokens": 2170868,
+        "output_tokens": 16058,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 47729,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 246,
+            "cache_read_input_tokens": 63169,
+            "cache_creation_input_tokens": 1492,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1492
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 48,
+        "completion_tokens": 16058
+      }
+    }
+  ],
+  "wall_s": 391.9,
+  "finished_at": "2026-06-12T10:21:05Z"
+}

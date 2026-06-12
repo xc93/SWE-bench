@@ -1,0 +1,25 @@
+{
+  "instance_id": "django__django-16263",
+  "arm_kind": "review-control",
+  "built_at": "2026-06-12T06:39:44Z",
+  "base_commit": "321ecb40f4da842926e1bc07e11df4aabe53ca4b",
+  "repo_source": "https://github.com/django/django.git",
+  "repo_local_head": "e384ffae7ab4c4a9af1b7da6f47c369164b38365",
+  "venv": {
+    "python": null,
+    "spec_source": null
+  },
+  "prebuilt_env": false,
+  "grading_backend": "docker",
+  "protocol_version": 2,
+  "instance_image": "swebench/sweb.eval.x86_64.django_1776_django-16263:latest",
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "46a194fe432ce7d4365a2a16cac2f2373565d9e4723e493e8160e487b42a3316",
+    "benchmark/public_instance.json": "3c04c6282d18f1859912d63552f2cdeccca045df49cf77c88c772769d1f75027",
+    "scripts/private_eval.py": "0e3286f4f680af30bb56c09dddc7b96afacb33fecb912cd22d31370e8ec87527"
+  },
+  "row_path": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/django__django-16263/row.json",
+  "row_sha256": "0092990907bd49ff0eef4c8f07658e915e2473b3b0d5c499090cd0b6ab13f22e"
+}

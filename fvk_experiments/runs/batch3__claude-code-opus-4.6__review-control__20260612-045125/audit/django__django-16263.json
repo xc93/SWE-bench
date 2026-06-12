@@ -1,0 +1,63 @@
+{
+  "contaminated": false,
+  "contamination_evidence": [],
+  "denied_tool_attempts": [],
+  "network_bash_commands": [],
+  "installer_bash_commands": [
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=4.2 && uv venv --python 3.11 .venv 2>&1 | tail -3",
+    "source .venv/bin/activate && export SETUPTOOLS_SCM_PRETEND_VERSION=4.2 && pip install -U pip setuptools wheel 2>&1 | tail -3 && (cd repo && pip install -e .) 2>&1 | tail -5",
+    ".venv/bin/python -m pip install -U pip setuptools wheel 2>&1 | tail -3 && export SETUPTOOLS_SCM_PRETEND_VERSION=4.2 && (cd repo && ../.venv/bin/python -m pip install -e .) 2>&1 | tail -5",
+    "uv pip install -p .venv/bin/python pip setuptools wheel 2>&1 | tail -5",
+    "export SETUPTOOLS_SCM_PRETEND_VERSION=4.2 && cd repo && ../.venv/bin/python -m pip install -e . 2>&1 | tail -5"
+  ],
+  "docker_bash_commands": [],
+  "private_row_reads": [],
+  "private_eval_script_edits": [],
+  "private_eval_invocations": 4,
+  "f2p_leaks_before_eval": [],
+  "f2p_mentions_total": 0,
+  "f2p_mentions": [],
+  "num_turns": 201,
+  "duration_ms": 4696702,
+  "usage": {
+    "input_tokens": 201,
+    "cache_creation_input_tokens": 277473,
+    "cache_read_input_tokens": 17359272,
+    "output_tokens": 179942,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 277473,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 1270,
+        "cache_read_input_tokens": 144374,
+        "cache_creation_input_tokens": 139,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 139
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "total_cost_usd": 15.581319450000015,
+  "counts": {
+    "denied_tool_attempts": 0,
+    "network_bash_commands": 0,
+    "installer_bash_commands": 5,
+    "docker_bash_commands": 0,
+    "private_row_reads": 0,
+    "private_eval_script_edits": 0,
+    "f2p_leaks_before_eval": 0
+  },
+  "session_status": "turn_cap"
+}

@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-15503",
+  "model_patch": "diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py\nindex fdca700..6085852 100644\n--- a/django/db/models/fields/json.py\n+++ b/django/db/models/fields/json.py\n@@ -191,14 +191,13 @@ class HasKeyLookup(PostgresOperatorLookup):\n         for key in rhs:\n             if isinstance(key, KeyTransform):\n                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)\n+                rhs_json_path = compile_json_path(\n+                    rhs_key_transforms, include_root=False\n+                )\n             else:\n-                rhs_key_transforms = [key]\n+                rhs_json_path = \".%s\" % json.dumps(key)\n             rhs_params.append(\n-                \"%s%s\"\n-                % (\n-                    lhs_json_path,\n-                    compile_json_path(rhs_key_transforms, include_root=False),\n-                )\n+                \"%s%s\" % (lhs_json_path, rhs_json_path)\n             )\n         # Add condition for each key.\n         if self.logical_operator:\n@@ -387,25 +386,22 @@ class KeyTransformTextLookupMixin:\n class KeyTransformIsNull(lookups.IsNull):\n     # key__isnull=False is the same as has_key='key'\n     def as_oracle(self, compiler, connection):\n-        sql, params = HasKey(\n-            self.lhs.lhs,\n-            self.lhs.key_name,\n-        ).as_oracle(compiler, connection)\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        sql = \"JSON_EXISTS(%s, '%%s')\" % lhs\n+        sql = sql % json_path\n         if not self.rhs:\n-            return sql, params\n+            return sql, tuple(params)\n         # Column doesn't have a key or IS NULL.\n-        lhs, lhs_params, _ = self.lhs.preprocess_lhs(compiler, connection)\n-        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(lhs_params)\n+        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params)\n \n     def as_sqlite(self, compiler, connection):\n         template = \"JSON_TYPE(%s, %%s) IS NULL\"\n         if not self.rhs:\n             template = \"JSON_TYPE(%s, %%s) IS NOT NULL\"\n-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(\n-            compiler,\n-            connection,\n-            template=template,\n-        )\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        return template % lhs, tuple(params) + (json_path,)\n \n \n class KeyTransformIn(lookups.In):\n@@ -466,13 +462,16 @@ class KeyTransformExact(JSONExact):\n         rhs, rhs_params = super().process_rhs(compiler, connection)\n         if rhs_params == [\"null\"]:\n             # Field has key and it's NULL.\n-            has_key_expr = HasKey(self.lhs.lhs, self.lhs.key_name)\n-            has_key_sql, has_key_params = has_key_expr.as_oracle(compiler, connection)\n+            lhs, params, key_transforms = self.lhs.preprocess_lhs(\n+                compiler, connection\n+            )\n+            json_path = compile_json_path(key_transforms)\n+            has_key_sql = \"JSON_EXISTS(%s, '%%s')\" % lhs % json_path\n             is_null_expr = self.lhs.get_lookup(\"isnull\")(self.lhs, True)\n             is_null_sql, is_null_params = is_null_expr.as_sql(compiler, connection)\n             return (\n                 \"%s AND %s\" % (has_key_sql, is_null_sql),\n-                tuple(has_key_params) + tuple(is_null_params),\n+                tuple(params) + tuple(is_null_params),\n             )\n         return super().as_sql(compiler, connection)\n \n",
+  "model_patch_v1": "diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py\nindex fdca700..ad3b658 100644\n--- a/django/db/models/fields/json.py\n+++ b/django/db/models/fields/json.py\n@@ -191,14 +191,13 @@ class HasKeyLookup(PostgresOperatorLookup):\n         for key in rhs:\n             if isinstance(key, KeyTransform):\n                 *_, rhs_key_transforms = key.preprocess_lhs(compiler, connection)\n+                rhs_json_path = compile_json_path(\n+                    rhs_key_transforms, include_root=False\n+                )\n             else:\n-                rhs_key_transforms = [key]\n+                rhs_json_path = \".%s\" % json.dumps(key)\n             rhs_params.append(\n-                \"%s%s\"\n-                % (\n-                    lhs_json_path,\n-                    compile_json_path(rhs_key_transforms, include_root=False),\n-                )\n+                \"%s%s\" % (lhs_json_path, rhs_json_path)\n             )\n         # Add condition for each key.\n         if self.logical_operator:\n@@ -387,25 +386,22 @@ class KeyTransformTextLookupMixin:\n class KeyTransformIsNull(lookups.IsNull):\n     # key__isnull=False is the same as has_key='key'\n     def as_oracle(self, compiler, connection):\n-        sql, params = HasKey(\n-            self.lhs.lhs,\n-            self.lhs.key_name,\n-        ).as_oracle(compiler, connection)\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        sql = \"JSON_EXISTS(%s, '%%s')\" % lhs\n+        sql = sql % json_path\n         if not self.rhs:\n-            return sql, params\n+            return sql, tuple(params)\n         # Column doesn't have a key or IS NULL.\n-        lhs, lhs_params, _ = self.lhs.preprocess_lhs(compiler, connection)\n-        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(lhs_params)\n+        return \"(NOT %s OR %s IS NULL)\" % (sql, lhs), tuple(params) + tuple(params)\n \n     def as_sqlite(self, compiler, connection):\n         template = \"JSON_TYPE(%s, %%s) IS NULL\"\n         if not self.rhs:\n             template = \"JSON_TYPE(%s, %%s) IS NOT NULL\"\n-        return HasKey(self.lhs.lhs, self.lhs.key_name).as_sql(\n-            compiler,\n-            connection,\n-            template=template,\n-        )\n+        lhs, params, key_transforms = self.lhs.preprocess_lhs(compiler, connection)\n+        json_path = compile_json_path(key_transforms)\n+        return template % lhs, tuple(params) + (json_path,)\n \n \n class KeyTransformIn(lookups.In):\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1148.6,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-15503",
+  "workspace_manifest_sha256": "190802bce32193eaf2a4265cc72ea8e53b46603d30bfabd84deee773579cf513",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 63,
+      "duration_ms": 1147810,
+      "total_cost_usd": 3.964733749999999,
+      "usage": {
+        "input_tokens": 60,
+        "cache_creation_input_tokens": 87813,
+        "cache_read_input_tokens": 3809795,
+        "output_tokens": 53660,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 87813,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 297,
+            "cache_read_input_tokens": 103650,
+            "cache_creation_input_tokens": 1644,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1644
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 60,
+        "completion_tokens": 53660
+      }
+    }
+  ],
+  "wall_s": 1155.2,
+  "finished_at": "2026-06-12T06:04:53Z"
+}

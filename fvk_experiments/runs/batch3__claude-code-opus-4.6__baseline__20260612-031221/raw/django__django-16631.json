@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-16631",
+  "model_patch": "diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py\nindex 155330c..bcd3528 100644\n--- a/django/contrib/auth/__init__.py\n+++ b/django/contrib/auth/__init__.py\n@@ -199,9 +199,20 @@ def get_user(request):\n             # Verify the session\n             if hasattr(user, \"get_session_auth_hash\"):\n                 session_hash = request.session.get(HASH_SESSION_KEY)\n-                session_hash_verified = session_hash and constant_time_compare(\n-                    session_hash, user.get_session_auth_hash()\n-                )\n+                if session_hash and hasattr(\n+                    user, \"get_session_auth_fallback_hash\"\n+                ):\n+                    session_hash_verified = any(\n+                        constant_time_compare(session_hash, fallback_hash)\n+                        for fallback_hash in [\n+                            user.get_session_auth_hash(),\n+                            *user.get_session_auth_fallback_hash(),\n+                        ]\n+                    )\n+                else:\n+                    session_hash_verified = session_hash and constant_time_compare(\n+                        session_hash, user.get_session_auth_hash()\n+                    )\n                 if not session_hash_verified:\n                     request.session.flush()\n                     user = None\ndiff --git a/django/contrib/auth/base_user.py b/django/contrib/auth/base_user.py\nindex 5ee30bf..e205ccc 100644\n--- a/django/contrib/auth/base_user.py\n+++ b/django/contrib/auth/base_user.py\n@@ -5,6 +5,7 @@ not in INSTALLED_APPS.\n import unicodedata\n import warnings\n \n+from django.conf import settings\n from django.contrib.auth import password_validation\n from django.contrib.auth.hashers import (\n     check_password,\n@@ -135,10 +136,18 @@ class AbstractBaseUser(models.Model):\n         \"\"\"\n         Return an HMAC of the password field.\n         \"\"\"\n+        return self._get_session_auth_hash()\n+\n+    def get_session_auth_fallback_hash(self):\n+        for fallback_secret in settings.SECRET_KEY_FALLBACKS:\n+            yield self._get_session_auth_hash(secret=fallback_secret)\n+\n+    def _get_session_auth_hash(self, secret=None):\n         key_salt = \"django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash\"\n         return salted_hmac(\n             key_salt,\n             self.password,\n+            secret=secret,\n             algorithm=\"sha256\",\n         ).hexdigest()\n \n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 314.4,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/django__django-16631",
+  "workspace_manifest_sha256": "82c9fdd91a7c6adf1418abded366347cecb161f55fb819b9845b56ebfd4b30c9",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 46,
+      "duration_ms": 312301,
+      "total_cost_usd": 1.1004190000000003,
+      "usage": {
+        "input_tokens": 39,
+        "cache_creation_input_tokens": 29876,
+        "cache_read_input_tokens": 1281782,
+        "output_tokens": 10818,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 29876,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 266,
+            "cache_read_input_tokens": 45549,
+            "cache_creation_input_tokens": 1259,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1259
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 39,
+        "completion_tokens": 10818
+      }
+    }
+  ],
+  "wall_s": 320.8,
+  "finished_at": "2026-06-12T04:23:14Z"
+}

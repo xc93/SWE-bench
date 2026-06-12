@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-15957",
+  "model_patch": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex be0deb9..8ac35d3 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -2448,6 +2448,18 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n     # The 'values to be matched' must be hashable as they will be used\n     # in a dictionary.\n \n+    db_queryset = lookup.get_current_queryset(level)\n+\n+    # Handle sliced querysets: extract the slice and remove it so filtering\n+    # can be applied. The slice will be applied per-instance after fetching.\n+    slice_offset = 0\n+    slice_stop = None\n+    if db_queryset is not None and db_queryset.query.is_sliced:\n+        slice_offset = db_queryset.query.low_mark\n+        slice_stop = db_queryset.query.high_mark\n+        db_queryset = db_queryset._chain()\n+        db_queryset.query.clear_limits()\n+\n     (\n         rel_qs,\n         rel_obj_attr,\n@@ -2455,7 +2467,7 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n         single,\n         cache_name,\n         is_descriptor,\n-    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))\n+    ) = prefetcher.get_prefetch_queryset(instances, db_queryset)\n     # We have to handle the possibility that the QuerySet we just got back\n     # contains some prefetch_related lookups. We don't want to trigger the\n     # prefetch_related functionality by evaluating the query. Rather, we need\n@@ -2500,6 +2512,9 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n         instance_attr_val = instance_attr(obj)\n         vals = rel_obj_cache.get(instance_attr_val, [])\n \n+        if slice_stop is not None or slice_offset:\n+            vals = vals[slice_offset:slice_stop]\n+\n         if single:\n             val = vals[0] if vals else None\n             if as_attr:\n@@ -2520,7 +2535,7 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n             else:\n                 manager = getattr(obj, to_attr)\n                 if leaf and lookup.queryset is not None:\n-                    qs = manager._apply_rel_filters(lookup.queryset)\n+                    qs = manager._apply_rel_filters(db_queryset)\n                 else:\n                     qs = manager.get_queryset()\n                 qs._result_cache = vals\n",
+  "model_patch_v1": "diff --git a/django/db/models/query.py b/django/db/models/query.py\nindex be0deb9..8ac35d3 100644\n--- a/django/db/models/query.py\n+++ b/django/db/models/query.py\n@@ -2448,6 +2448,18 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n     # The 'values to be matched' must be hashable as they will be used\n     # in a dictionary.\n \n+    db_queryset = lookup.get_current_queryset(level)\n+\n+    # Handle sliced querysets: extract the slice and remove it so filtering\n+    # can be applied. The slice will be applied per-instance after fetching.\n+    slice_offset = 0\n+    slice_stop = None\n+    if db_queryset is not None and db_queryset.query.is_sliced:\n+        slice_offset = db_queryset.query.low_mark\n+        slice_stop = db_queryset.query.high_mark\n+        db_queryset = db_queryset._chain()\n+        db_queryset.query.clear_limits()\n+\n     (\n         rel_qs,\n         rel_obj_attr,\n@@ -2455,7 +2467,7 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n         single,\n         cache_name,\n         is_descriptor,\n-    ) = prefetcher.get_prefetch_queryset(instances, lookup.get_current_queryset(level))\n+    ) = prefetcher.get_prefetch_queryset(instances, db_queryset)\n     # We have to handle the possibility that the QuerySet we just got back\n     # contains some prefetch_related lookups. We don't want to trigger the\n     # prefetch_related functionality by evaluating the query. Rather, we need\n@@ -2500,6 +2512,9 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n         instance_attr_val = instance_attr(obj)\n         vals = rel_obj_cache.get(instance_attr_val, [])\n \n+        if slice_stop is not None or slice_offset:\n+            vals = vals[slice_offset:slice_stop]\n+\n         if single:\n             val = vals[0] if vals else None\n             if as_attr:\n@@ -2520,7 +2535,7 @@ def prefetch_one_level(instances, prefetcher, lookup, level):\n             else:\n                 manager = getattr(obj, to_attr)\n                 if leaf and lookup.queryset is not None:\n-                    qs = manager._apply_rel_filters(lookup.queryset)\n+                    qs = manager._apply_rel_filters(db_queryset)\n                 else:\n                     qs = manager.get_queryset()\n                 qs._result_cache = vals\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 847.5,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__review-control__20260612-045125/django__django-15957",
+  "workspace_manifest_sha256": "5cb0e26e4415458b3865cf6aac7a5670675bad64546e84c3ec8f1dc7dde7567f",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 51,
+      "duration_ms": 846733,
+      "total_cost_usd": 2.4118840499999994,
+      "usage": {
+        "input_tokens": 43,
+        "cache_creation_input_tokens": 59309,
+        "cache_read_input_tokens": 1955414,
+        "output_tokens": 33266,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 59309,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 253,
+            "cache_read_input_tokens": 75264,
+            "cache_creation_input_tokens": 1526,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1526
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 43,
+        "completion_tokens": 33266
+      }
+    }
+  ],
+  "wall_s": 854.0,
+  "finished_at": "2026-06-12T06:39:42Z"
+}

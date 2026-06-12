@@ -1,0 +1,61 @@
+{
+  "run_id": "batch3__claude-code-opus-4.6__baseline__20260612-031221",
+  "arm": "baseline",
+  "arm_kind": "baseline",
+  "model_label": "claude-code-opus-4.6__baseline",
+  "model": "claude-code-opus-4.6",
+  "provider": "claude-code",
+  "thinking": null,
+  "prompt_path": "prompts/agentic/baseline-v2.md",
+  "prompt_version": "v2",
+  "prompt_sha256": "1aa4dad5182642ffec4c70a11230e098fde1ff5f2d816fcc357726e3d11699d9",
+  "cc_model": "claude-opus-4-6",
+  "cc_version": "2.1.169 (Claude Code)",
+  "max_turns": 200,
+  "session_timeout_s": 5400,
+  "protocol_version": 2,
+  "disallowed_tools": "WebSearch,WebFetch,Skill",
+  "sealed_home": "/home/xc/.cache/fvk-agent-home",
+  "dataset": "princeton-nlp/SWE-bench_Verified",
+  "split": "test",
+  "instance_ids": [
+    "astropy__astropy-14369",
+    "django__django-15503",
+    "django__django-15629",
+    "django__django-15957",
+    "django__django-16263",
+    "django__django-16560",
+    "django__django-16631",
+    "pylint-dev__pylint-4551",
+    "pylint-dev__pylint-8898"
+  ],
+  "started_at": "2026-06-12T03:12:28Z",
+  "finished_at": "2026-06-12T04:47:51Z",
+  "n_with_patch": 8,
+  "n_errors": 1,
+  "contaminated_ids": [
+    "pylint-dev__pylint-8898"
+  ],
+  "session_statuses": {
+    "astropy__astropy-14369": "ok",
+    "django__django-15503": "ok",
+    "django__django-15629": "ok",
+    "django__django-15957": "ok",
+    "django__django-16263": "ok",
+    "django__django-16560": "ok",
+    "django__django-16631": "ok",
+    "pylint-dev__pylint-4551": "ok",
+    "pylint-dev__pylint-8898": "ok"
+  },
+  "workspace_manifest_shas": {
+    "astropy__astropy-14369": "db80029fe596f5d3952217f99e2d1f768828d62383194e4bccb2d1e7f9542ed4",
+    "django__django-15503": "5c28866310d81547b880e68c697c30dd70c2e5e249d43eb2816f49509c213837",
+    "django__django-15629": "b7eb6e6af799c01208effe63ec480878e2ae7238bafa7921fa71eea99ec058c0",
+    "django__django-15957": "f4a0b56dbff26a0650c03e1fee30745e09a31bd6d79e96cdb2b4c3f5979c104f",
+    "django__django-16263": "b35fa779b168b1f1972ebb20bd89453ef138183bfecaf4f70b50fed03ef6c016",
+    "django__django-16560": "c42de174e5a2962da2daa9feb1aefc632d4b8036fb5732b89fc33013eeac12b7",
+    "django__django-16631": "82c9fdd91a7c6adf1418abded366347cecb161f55fb819b9845b56ebfd4b30c9",
+    "pylint-dev__pylint-4551": "72b51223e537f638f733a877a56c4f8511c79819d26afcf3051e63481f5527b7",
+    "pylint-dev__pylint-8898": "e61c5ac4e8b36db9c9cafd70c322900e06c9b64d342c5d4a70e33f6fc2b5d40d"
+  }
+}

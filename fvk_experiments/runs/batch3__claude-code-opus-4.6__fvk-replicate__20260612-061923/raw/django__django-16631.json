@@ -1,0 +1,64 @@
+{
+  "instance_id": "django__django-16631",
+  "model_patch": "diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py\nindex 155330c..90a1d32 100644\n--- a/django/contrib/auth/__init__.py\n+++ b/django/contrib/auth/__init__.py\n@@ -109,6 +109,16 @@ def login(request, user, backend=None):\n             and not constant_time_compare(\n                 request.session.get(HASH_SESSION_KEY, \"\"), session_auth_hash\n             )\n+            and not (\n+                hasattr(user, \"get_session_auth_fallback_hash\")\n+                and any(\n+                    constant_time_compare(\n+                        request.session.get(HASH_SESSION_KEY, \"\"),\n+                        fallback_hash,\n+                    )\n+                    for fallback_hash in user.get_session_auth_fallback_hash()\n+                )\n+            )\n         ):\n             # To avoid reusing another user's session, create a new, empty\n             # session if the existing session corresponds to a different\n@@ -202,6 +212,21 @@ def get_user(request):\n                 session_hash_verified = session_hash and constant_time_compare(\n                     session_hash, user.get_session_auth_hash()\n                 )\n+                if (\n+                    not session_hash_verified\n+                    and session_hash\n+                    and hasattr(user, \"get_session_auth_fallback_hash\")\n+                ):\n+                    for fallback_hash in (\n+                        user.get_session_auth_fallback_hash()\n+                    ):\n+                        if constant_time_compare(session_hash, fallback_hash):\n+                            session_hash_verified = True\n+                            request.session.cycle_key()\n+                            request.session[\n+                                HASH_SESSION_KEY\n+                            ] = user.get_session_auth_hash()\n+                            break\n                 if not session_hash_verified:\n                     request.session.flush()\n                     user = None\ndiff --git a/django/contrib/auth/base_user.py b/django/contrib/auth/base_user.py\nindex 5ee30bf..e205ccc 100644\n--- a/django/contrib/auth/base_user.py\n+++ b/django/contrib/auth/base_user.py\n@@ -5,6 +5,7 @@ not in INSTALLED_APPS.\n import unicodedata\n import warnings\n \n+from django.conf import settings\n from django.contrib.auth import password_validation\n from django.contrib.auth.hashers import (\n     check_password,\n@@ -135,10 +136,18 @@ class AbstractBaseUser(models.Model):\n         \"\"\"\n         Return an HMAC of the password field.\n         \"\"\"\n+        return self._get_session_auth_hash()\n+\n+    def get_session_auth_fallback_hash(self):\n+        for fallback_secret in settings.SECRET_KEY_FALLBACKS:\n+            yield self._get_session_auth_hash(secret=fallback_secret)\n+\n+    def _get_session_auth_hash(self, secret=None):\n         key_salt = \"django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash\"\n         return salted_hmac(\n             key_salt,\n             self.password,\n+            secret=secret,\n             algorithm=\"sha256\",\n         ).hexdigest()\n \n",
+  "model_patch_v1": "diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py\nindex 155330c..0be6ad9 100644\n--- a/django/contrib/auth/__init__.py\n+++ b/django/contrib/auth/__init__.py\n@@ -199,9 +199,21 @@ def get_user(request):\n             # Verify the session\n             if hasattr(user, \"get_session_auth_hash\"):\n                 session_hash = request.session.get(HASH_SESSION_KEY)\n-                session_hash_verified = session_hash and constant_time_compare(\n-                    session_hash, user.get_session_auth_hash()\n-                )\n+                if session_hash and hasattr(\n+                    user, \"get_session_auth_fallback_hash\"\n+                ):\n+                    session_hash_verified = constant_time_compare(\n+                        session_hash, user.get_session_auth_hash()\n+                    ) or any(\n+                        constant_time_compare(session_hash, fallback_hash)\n+                        for fallback_hash in (\n+                            user.get_session_auth_fallback_hash()\n+                        )\n+                    )\n+                else:\n+                    session_hash_verified = session_hash and constant_time_compare(\n+                        session_hash, user.get_session_auth_hash()\n+                    )\n                 if not session_hash_verified:\n                     request.session.flush()\n                     user = None\ndiff --git a/django/contrib/auth/base_user.py b/django/contrib/auth/base_user.py\nindex 5ee30bf..e205ccc 100644\n--- a/django/contrib/auth/base_user.py\n+++ b/django/contrib/auth/base_user.py\n@@ -5,6 +5,7 @@ not in INSTALLED_APPS.\n import unicodedata\n import warnings\n \n+from django.conf import settings\n from django.contrib.auth import password_validation\n from django.contrib.auth.hashers import (\n     check_password,\n@@ -135,10 +136,18 @@ class AbstractBaseUser(models.Model):\n         \"\"\"\n         Return an HMAC of the password field.\n         \"\"\"\n+        return self._get_session_auth_hash()\n+\n+    def get_session_auth_fallback_hash(self):\n+        for fallback_secret in settings.SECRET_KEY_FALLBACKS:\n+            yield self._get_session_auth_hash(secret=fallback_secret)\n+\n+    def _get_session_auth_hash(self, secret=None):\n         key_salt = \"django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash\"\n         return salted_hmac(\n             key_salt,\n             self.password,\n+            secret=secret,\n             algorithm=\"sha256\",\n         ).hexdigest()\n \n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 3050.0,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__fvk-replicate__20260612-061923/django__django-16631",
+  "workspace_manifest_sha256": "56f977a0fea696da4cb6c2448f6a5cf18b91eeb4dd22445c627ce63717e2f730",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 209,
+      "duration_ms": 3048078,
+      "total_cost_usd": 14.636766749999994,
+      "usage": {
+        "input_tokens": 191,
+        "cache_creation_input_tokens": 326202,
+        "cache_read_input_tokens": 17675778,
+        "output_tokens": 141636,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 326202,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 338,
+            "cache_read_input_tokens": 150729,
+            "cache_creation_input_tokens": 918,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 918
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 191,
+        "completion_tokens": 141636
+      }
+    }
+  ],
+  "wall_s": 3057.0,
+  "finished_at": "2026-06-12T10:50:16Z"
+}

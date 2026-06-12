@@ -1,0 +1,24 @@
+{
+  "instance_id": "pylint-dev__pylint-8898",
+  "arm_kind": "baseline",
+  "built_at": "2026-06-12T04:43:36Z",
+  "base_commit": "1f8c4d9eb185c16a2c1d881c054f015e1c2eb334",
+  "repo_source": "https://github.com/pylint-dev/pylint.git",
+  "repo_local_head": "2c4c5d8f58ac94770ec40eaed0e9dd05eed75ddd",
+  "venv": {
+    "python": null,
+    "spec_source": null
+  },
+  "prebuilt_env": false,
+  "grading_backend": "local",
+  "protocol_version": 2,
+  "instance_image": null,
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "a4f7136c37a38f06460032808d6f511c3745166f24753bb4570829be99729660",
+    "benchmark/public_instance.json": "a9e94fb952c9da1b93b3647da5ef63a0ace6808ad8e04a863e66474d7f8c09c3"
+  },
+  "row_path": null,
+  "row_sha256": null
+}

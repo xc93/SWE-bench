@@ -1,0 +1,24 @@
+{
+  "instance_id": "django__django-16263",
+  "arm_kind": "baseline",
+  "built_at": "2026-06-12T03:56:12Z",
+  "base_commit": "321ecb40f4da842926e1bc07e11df4aabe53ca4b",
+  "repo_source": "https://github.com/django/django.git",
+  "repo_local_head": "39eb15f97bf777570d756fd83cb5a3ceb959c9b2",
+  "venv": {
+    "python": null,
+    "spec_source": null
+  },
+  "prebuilt_env": false,
+  "grading_backend": "local",
+  "protocol_version": 2,
+  "instance_image": null,
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "46a194fe432ce7d4365a2a16cac2f2373565d9e4723e493e8160e487b42a3316",
+    "benchmark/public_instance.json": "3c04c6282d18f1859912d63552f2cdeccca045df49cf77c88c772769d1f75027"
+  },
+  "row_path": null,
+  "row_sha256": null
+}

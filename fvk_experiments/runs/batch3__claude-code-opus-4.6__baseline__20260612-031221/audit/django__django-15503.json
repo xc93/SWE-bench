@@ -1,0 +1,62 @@
+{
+  "contaminated": false,
+  "contamination_evidence": [],
+  "denied_tool_attempts": [],
+  "network_bash_commands": [],
+  "installer_bash_commands": [
+    "cd /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/django__django-15503 && export SETUPTOOLS_SCM_PRETEND_VERSION=4.1 && uv venv --python 3.9 .venv 2>&1 | tail -3",
+    "source .venv/bin/activate && pip install -U pip setuptools wheel 2>&1 | tail -3 && cd repo && pip install -e . 2>&1 | tail -3",
+    "cd /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/django__django-15503 && .venv/bin/python -m pip install -U pip setuptools wheel 2>&1 | tail -3 && cd repo && ../.venv/bin/python -m pip install -e . 2>&1 | tail -3",
+    "cd /home/xc/.cache/fvk-workspaces/batch3__claude-code-opus-4.6__baseline__20260612-031221/django__django-15503 && uv pip install -p .venv/bin/python pip setuptools wheel 2>&1 | tail -3 && uv pip install -p .venv/bin/python -e ./repo 2>&1 | tail -3"
+  ],
+  "docker_bash_commands": [],
+  "private_row_reads": [],
+  "private_eval_script_edits": [],
+  "private_eval_invocations": 0,
+  "f2p_leaks_before_eval": [],
+  "f2p_mentions_total": 0,
+  "f2p_mentions": [],
+  "num_turns": 42,
+  "duration_ms": 788802,
+  "usage": {
+    "input_tokens": 40,
+    "cache_creation_input_tokens": 61788,
+    "cache_read_input_tokens": 2025451,
+    "output_tokens": 31937,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 61788,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 307,
+        "cache_read_input_tokens": 79078,
+        "cache_creation_input_tokens": 191,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 191
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "total_cost_usd": 2.340443450000001,
+  "counts": {
+    "denied_tool_attempts": 0,
+    "network_bash_commands": 0,
+    "installer_bash_commands": 4,
+    "docker_bash_commands": 0,
+    "private_row_reads": 0,
+    "private_eval_script_edits": 0,
+    "f2p_leaks_before_eval": 0
+  },
+  "session_status": "ok"
+}

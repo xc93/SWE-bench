@@ -1,0 +1,25 @@
+{
+  "instance_id": "pylint-dev__pylint-4551",
+  "arm_kind": "review-control",
+  "built_at": "2026-06-12T09:43:38Z",
+  "base_commit": "99589b08de8c5a2c6cc61e13a37420a868c80599",
+  "repo_source": "https://github.com/pylint-dev/pylint.git",
+  "repo_local_head": "7203089ce146f3284baf8247f07b2d01396ce44b",
+  "venv": {
+    "python": null,
+    "spec_source": null
+  },
+  "prebuilt_env": false,
+  "grading_backend": "docker",
+  "protocol_version": 2,
+  "instance_image": "swebench/sweb.eval.x86_64.pylint-dev_1776_pylint-4551:latest",
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "1b289d512a3b1ee6584ca0fc8e5b935d4733976c264d25fee0ec82b7db92c238",
+    "benchmark/public_instance.json": "e2eb2f617b22cd6a0c8ff19629413a7590e027c04c8ec8a16ee8435b52c7bac2",
+    "scripts/private_eval.py": "c653dc8f7b4627644c86669ceffca0297e26ff1c114529219899580060ce8a30"
+  },
+  "row_path": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/batch3__claude-code-opus-4.6__review-control__20260612-045125/private/pylint-dev__pylint-4551/row.json",
+  "row_sha256": "b678c18e24b51b933dbbb1e1d7fc837efc2fde393a47391efa2b6d04ff98ecef"
+}
