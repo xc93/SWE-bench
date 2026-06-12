@@ -35,15 +35,16 @@ docker ps                 # docker daemon up (grading uses official SWE-bench im
 ## The 5 groups
 
 Each group is 9 instances. `[H]` = a "hard" repo whose env is pre-built for the agent so it
-doesn't burn turns installing it.
+doesn't burn turns installing it. **Before starting a group, check its status here: only run
+a group marked `open`, then mark it TAKEN and push, so no group is ever run twice.**
 
-| group | instances |
-|---|---|
-| **batch1** | astropy-13398 [H], django-10554, -11138, -11400, -11885, -12325, -12708, -13128, -13212 |
-| **batch2** | astropy-13579 [H], django-13344, -13449, -13837, -14007, -14011, -14631, -15128, -15268 |
-| **batch3** | astropy-14369 [H], django-15503, -15629, -15957, -16263, -16560, -16631, pylint-4551, pylint-8898 |
-| **batch4** | xarray-3993 [H], pytest-10356, -5787, -6197, sphinx-11510, -7590, -8548, -9229, -9461 |
-| **batch5** | xarray-6992 [H], scikit-learn-25102 [H], sympy-12489, -13852, -13878, -14248, -16597, -17630, -18199 |
+| group | status | instances |
+|---|---|---|
+| **batch1** | open | astropy-13398 [H], django-10554, -11138, -11400, -11885, -12325, -12708, -13128, -13212 |
+| **batch2** | open | astropy-13579 [H], django-13344, -13449, -13837, -14007, -14011, -14631, -15128, -15268 |
+| **batch3** | **TAKEN** — tested elsewhere, do not run | astropy-14369 [H], django-15503, -15629, -15957, -16263, -16560, -16631, pylint-4551, pylint-8898 |
+| **batch4** | open | xarray-3993 [H], pytest-10356, -5787, -6197, sphinx-11510, -7590, -8548, -9229, -9461 |
+| **batch5** | **TAKEN** — tested elsewhere, do not run | xarray-6992 [H], scikit-learn-25102 [H], sympy-12489, -13852, -13878, -14248, -16597, -17630, -18199 |
 
 ## Run ONE group (this is the whole loop)
 
