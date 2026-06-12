@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13398",
+  "model_patch": "diff --git a/astropy/coordinates/builtin_frames/itrs_observed_transforms.py b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\nnew file mode 100644\nindex 0000000..103a3e2\n--- /dev/null\n+++ b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\n@@ -0,0 +1,87 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\"\"\"\n+Contains the transformation functions for getting from ITRS to observed\n+systems (AltAz, HADec) and back. These are purely rotation-based\n+transformations that stay within the ITRS.\n+\"\"\"\n+\n+import numpy as np\n+\n+from astropy import units as u\n+from astropy.coordinates.baseframe import frame_transform_graph\n+from astropy.coordinates.transformations import FunctionTransformWithFiniteDifference\n+from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_transpose\n+\n+from .altaz import AltAz\n+from .hadec import HADec\n+from .itrs import ITRS\n+from .utils import PIOVER2\n+\n+\n+def itrs_to_observed_mat(observed_frame):\n+    lon, lat, height = observed_frame.location.to_geodetic('WGS84')\n+    elong = lon.to_value(u.radian)\n+\n+    if isinstance(observed_frame, AltAz):\n+        # form ITRS to AltAz matrix\n+        elat = lat.to_value(u.radian)\n+        # AltAz frame is left handed\n+        minus_x = np.eye(3)\n+        minus_x[0][0] = -1.0\n+        mat = (minus_x\n+               @ rotation_matrix(PIOVER2 - elat, 'y', unit=u.radian)\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+    else:\n+        # form ITRS to HADec matrix\n+        # HADec frame is left handed\n+        minus_y = np.eye(3)\n+        minus_y[1][1] = -1.0\n+        mat = (minus_y\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+    return mat\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, AltAz)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, HADec)\n+def itrs_to_observed(itrs_coo, observed_frame):\n+    # Trying to synchronize the obstimes here makes no sense. In fact,\n+    # it's a real gotcha as doing an ITRS->ITRS transform references\n+    # ITRS coordinates, which should be tied to the Earth, to the SSB.\n+    # Instead, we treat ITRS coordinates as time invariant here.\n+\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = (itrs_coo.cartesian\n+                             + itrs_coo.location.get_itrs().cartesian\n+                             - observed_frame.location.get_itrs().cartesian)\n+    rep = topocentric_itrs_repr.transform(itrs_to_observed_mat(observed_frame))\n+    return observed_frame.realize_frame(rep)\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, AltAz, ITRS)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, HADec, ITRS)\n+def observed_to_itrs(observed_coo, itrs_frame):\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = observed_coo.cartesian.transform(matrix_transpose(\n+                            itrs_to_observed_mat(observed_coo)))\n+    # form the position in the ITRS frame's reference location\n+    rep = (topocentric_itrs_repr\n+           + observed_coo.location.get_itrs().cartesian\n+           - itrs_frame.location.get_itrs().cartesian)\n+    return itrs_frame.realize_frame(rep)\n+\n+\n+# Create merged transforms to ensure that TETE and TEME do not shortcut\n+# through ITRS to get to AltAz/HADec. These frames must go through the\n+# aberration-correcting CIRS path.\n+from .equatorial import TETE, TEME  # noqa: E402\n+from .cirs import CIRS  # noqa: E402\n+from .gcrs import GCRS  # noqa: E402\n+\n+frame_transform_graph._add_merged_transform(TETE, GCRS, CIRS, AltAz)\n+frame_transform_graph._add_merged_transform(TETE, GCRS, CIRS, HADec)\n+frame_transform_graph._add_merged_transform(AltAz, CIRS, GCRS, TETE)\n+frame_transform_graph._add_merged_transform(HADec, CIRS, GCRS, TETE)\n+frame_transform_graph._add_merged_transform(TEME, ITRS, CIRS, AltAz)\n+frame_transform_graph._add_merged_transform(TEME, ITRS, CIRS, HADec)\n+frame_transform_graph._add_merged_transform(AltAz, CIRS, ITRS, TEME)\n+frame_transform_graph._add_merged_transform(HADec, CIRS, ITRS, TEME)\ndiff --git a/astropy/coordinates/builtin_frames/__init__.py b/astropy/coordinates/builtin_frames/__init__.py\nindex 6fd688c..17f4642 100644\n--- a/astropy/coordinates/builtin_frames/__init__.py\n+++ b/astropy/coordinates/builtin_frames/__init__.py\n@@ -49,6 +49,7 @@ from . import icrs_cirs_transforms\n from . import cirs_observed_transforms\n from . import icrs_observed_transforms\n from . import intermediate_rotation_transforms\n+from . import itrs_observed_transforms\n from . import ecliptic_transforms\n \n # Import this after importing other frames, since this requires various\ndiff --git a/astropy/coordinates/builtin_frames/itrs.py b/astropy/coordinates/builtin_frames/itrs.py\nindex e121ec9..906bba8 100644\n--- a/astropy/coordinates/builtin_frames/itrs.py\n+++ b/astropy/coordinates/builtin_frames/itrs.py\n@@ -3,13 +3,27 @@\n from astropy.utils.decorators import format_doc\n from astropy.coordinates.representation import CartesianRepresentation, CartesianDifferential\n from astropy.coordinates.baseframe import BaseCoordinateFrame, base_doc\n-from astropy.coordinates.attributes import TimeAttribute\n-from .utils import DEFAULT_OBSTIME\n+from astropy.coordinates.attributes import TimeAttribute, EarthLocationAttribute\n+from .utils import DEFAULT_OBSTIME, EARTH_CENTER\n \n __all__ = ['ITRS']\n \n \n-@format_doc(base_doc, components=\"\", footer=\"\")\n+doc_footer = \"\"\"\n+    Other parameters\n+    ----------------\n+    obstime : `~astropy.time.Time`\n+        The time at which the observation is taken.  Used for determining the\n+        position of the Earth.\n+    location : `~astropy.coordinates.EarthLocation`\n+        The location on the Earth.  This can be specified either as an\n+        `~astropy.coordinates.EarthLocation` object or as anything that can be\n+        transformed to an `~astropy.coordinates.ITRS` frame. The default is the\n+        centre of the Earth.\n+\"\"\"\n+\n+\n+@format_doc(base_doc, components=\"\", footer=doc_footer)\n class ITRS(BaseCoordinateFrame):\n     \"\"\"\n     A coordinate or frame in the International Terrestrial Reference System\n@@ -17,12 +31,17 @@ class ITRS(BaseCoordinateFrame):\n     defined by a series of reference locations near the surface of the Earth.\n     For more background on the ITRS, see the references provided in the\n     :ref:`astropy:astropy-coordinates-seealso` section of the documentation.\n+\n+    This frame also includes frames that are defined *relative* to the center of the Earth,\n+    but that are offset (in both position and velocity) from the center of the Earth. You\n+    may see such non-geocentric coordinates referred to as \"topocentric\".\n     \"\"\"\n \n     default_representation = CartesianRepresentation\n     default_differential = CartesianDifferential\n \n     obstime = TimeAttribute(default=DEFAULT_OBSTIME)\n+    location = EarthLocationAttribute(default=EARTH_CENTER)\n \n     @property\n     def earth_location(self):\n",
+  "model_patch_v1": "diff --git a/astropy/coordinates/builtin_frames/itrs_observed_transforms.py b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\nnew file mode 100644\nindex 0000000..6c1100b\n--- /dev/null\n+++ b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\n@@ -0,0 +1,67 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\"\"\"\n+Contains the transformation functions for getting from ITRS to observed\n+systems (AltAz, HADec) and back. These are purely rotation-based\n+transformations that stay within the ITRS.\n+\"\"\"\n+\n+import numpy as np\n+\n+from astropy import units as u\n+from astropy.coordinates.baseframe import frame_transform_graph\n+from astropy.coordinates.transformations import FunctionTransformWithFiniteDifference\n+from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_transpose\n+\n+from .altaz import AltAz\n+from .hadec import HADec\n+from .itrs import ITRS\n+from .utils import PIOVER2\n+\n+\n+def itrs_to_observed_mat(observed_frame):\n+    lon, lat, height = observed_frame.location.to_geodetic('WGS84')\n+    elong = lon.to_value(u.radian)\n+\n+    if isinstance(observed_frame, AltAz):\n+        # form ITRS to AltAz matrix\n+        elat = lat.to_value(u.radian)\n+        # AltAz frame is left handed\n+        minus_x = np.eye(3)\n+        minus_x[0][0] = -1.0\n+        mat = (minus_x\n+               @ rotation_matrix(PIOVER2 - elat, 'y', unit=u.radian)\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+    else:\n+        # form ITRS to HADec matrix\n+        # HADec frame is left handed\n+        minus_y = np.eye(3)\n+        minus_y[1][1] = -1.0\n+        mat = (minus_y\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+    return mat\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, AltAz)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, HADec)\n+def itrs_to_observed(itrs_coo, observed_frame):\n+    # Trying to synchronize the obstimes here makes no sense. In fact,\n+    # it's a real gotcha as doing an ITRS->ITRS transform references\n+    # ITRS coordinates, which should be tied to the Earth, to the SSB.\n+    # Instead, we treat ITRS coordinates as time invariant here.\n+\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = (itrs_coo.cartesian\n+                             - observed_frame.location.get_itrs().cartesian)\n+    rep = topocentric_itrs_repr.transform(itrs_to_observed_mat(observed_frame))\n+    return observed_frame.realize_frame(rep)\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, AltAz, ITRS)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, HADec, ITRS)\n+def observed_to_itrs(observed_coo, itrs_frame):\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = observed_coo.cartesian.transform(matrix_transpose(\n+                            itrs_to_observed_mat(observed_coo)))\n+    # form the Geocentric ITRS position\n+    rep = topocentric_itrs_repr + observed_coo.location.get_itrs().cartesian\n+    return itrs_frame.realize_frame(rep)\ndiff --git a/astropy/coordinates/builtin_frames/__init__.py b/astropy/coordinates/builtin_frames/__init__.py\nindex 6fd688c..17f4642 100644\n--- a/astropy/coordinates/builtin_frames/__init__.py\n+++ b/astropy/coordinates/builtin_frames/__init__.py\n@@ -49,6 +49,7 @@ from . import icrs_cirs_transforms\n from . import cirs_observed_transforms\n from . import icrs_observed_transforms\n from . import intermediate_rotation_transforms\n+from . import itrs_observed_transforms\n from . import ecliptic_transforms\n \n # Import this after importing other frames, since this requires various\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 3521.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__review-control__20260611-134910/astropy__astropy-13398",
+  "workspace_manifest_sha256": "608eec89e2718a8e8c0ea330191d7da66941428f73bb3a3efad55e277c03baaa",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 148,
+      "duration_ms": 3518046,
+      "total_cost_usd": 12.292712699999996,
+      "usage": {
+        "input_tokens": 138,
+        "cache_creation_input_tokens": 261921,
+        "cache_read_input_tokens": 12392333,
+        "output_tokens": 152134,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 261921,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 458,
+            "cache_read_input_tokens": 127811,
+            "cache_creation_input_tokens": 1870,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1870
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 138,
+        "completion_tokens": 152134
+      }
+    }
+  ],
+  "wall_s": 3610.6,
+  "finished_at": "2026-06-11T15:17:07Z"
+}

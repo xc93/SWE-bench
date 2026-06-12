@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-14096",
+  "model_patch": "diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py\nindex ab475f7..b7aa17d 100644\n--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -895,6 +895,16 @@ class SkyCoord(ShapedLikeNDArray):\n                 return self.transform_to(attr)\n \n         # Fail\n+        # If attr is a descriptor (e.g. a property) defined on the class,\n+        # __getattr__ was only called because the descriptor raised\n+        # AttributeError internally. Re-invoke it so the real error propagates.\n+        for cls in type(self).__mro__:\n+            if attr in cls.__dict__:\n+                dsc = cls.__dict__[attr]\n+                if hasattr(dsc, \"__get__\"):\n+                    return dsc.__get__(self, type(self))\n+                break\n+\n         raise AttributeError(\n             f\"'{self.__class__.__name__}' object has no attribute '{attr}'\"\n         )\n",
+  "model_patch_v1": "diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py\nindex ab475f7..b7aa17d 100644\n--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -895,6 +895,16 @@ class SkyCoord(ShapedLikeNDArray):\n                 return self.transform_to(attr)\n \n         # Fail\n+        # If attr is a descriptor (e.g. a property) defined on the class,\n+        # __getattr__ was only called because the descriptor raised\n+        # AttributeError internally. Re-invoke it so the real error propagates.\n+        for cls in type(self).__mro__:\n+            if attr in cls.__dict__:\n+                dsc = cls.__dict__[attr]\n+                if hasattr(dsc, \"__get__\"):\n+                    return dsc.__get__(self, type(self))\n+                break\n+\n         raise AttributeError(\n             f\"'{self.__class__.__name__}' object has no attribute '{attr}'\"\n         )\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 594.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__review-control__20260611-134910/astropy__astropy-14096",
+  "workspace_manifest_sha256": "8c761f03e000eb9e931d2928f8ceb982a4b1a78528f38f6f50c00681d2169287",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 40,
+      "duration_ms": 591871,
+      "total_cost_usd": 1.5612162499999998,
+      "usage": {
+        "input_tokens": 30,
+        "cache_creation_input_tokens": 46867,
+        "cache_read_input_tokens": 1233207,
+        "output_tokens": 25897,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 46867,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 261,
+            "cache_read_input_tokens": 62301,
+            "cache_creation_input_tokens": 1483,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1483
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 30,
+        "completion_tokens": 25897
+      }
+    }
+  ],
+  "wall_s": 681.3,
+  "finished_at": "2026-06-11T16:12:41Z"
+}

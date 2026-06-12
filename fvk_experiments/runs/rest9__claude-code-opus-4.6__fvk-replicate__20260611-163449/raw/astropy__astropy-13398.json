@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13398",
+  "model_patch": "",
+  "model_patch_v1": "",
+  "final_source": "empty",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "cli_error",
+  "error": "session cli_error: rc=1",
+  "attempts": [
+    {
+      "returncode": 1,
+      "timed_out": false,
+      "duration_s": 356.6,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449/astropy__astropy-13398",
+  "workspace_manifest_sha256": "70d6896e976e34d9f56e0ba4b4baa07362630e4e03f48098aa455db1b5202076",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 13,
+      "duration_ms": 354456,
+      "total_cost_usd": 0.5053598999999999,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 34675,
+        "cache_read_input_tokens": 108590,
+        "output_tokens": 2299,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 34675,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 702,
+            "cache_read_input_tokens": 28472,
+            "cache_creation_input_tokens": 6203,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 6203
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 6,
+        "completion_tokens": 2299
+      }
+    }
+  ],
+  "wall_s": 439.3,
+  "finished_at": "2026-06-11T17:06:46Z"
+}

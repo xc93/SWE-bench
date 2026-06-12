@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13977",
+  "model_patch": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfa..56305c8 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -636,6 +636,21 @@ class Quantity(np.ndarray):\n         result : `~astropy.units.Quantity`\n             Results of the ufunc, with the unit set properly.\n         \"\"\"\n+        # Defer to the other operand if any input or output is not a type\n+        # we know how to handle but defines its own __array_ufunc__.\n+        out = kwargs.get(\"out\", None)\n+        for inp in inputs:\n+            if (isinstance(inp, (np.ndarray, np.generic))\n+                    or isinstance(inp, numbers.Number)):\n+                continue\n+            if getattr(inp, '__array_ufunc__', None) is not None:\n+                return NotImplemented\n+        if out is not None:\n+            for o in (out if isinstance(out, tuple) else (out,)):\n+                if o is not None and not isinstance(o, np.ndarray):\n+                    if getattr(o, '__array_ufunc__', None) is not None:\n+                        return NotImplemented\n+\n         # Determine required conversion functions -- to bring the unit of the\n         # input to that expected (e.g., radian for np.sin), or to get\n         # consistent units between two inputs (e.g., in np.add) --\n",
+  "model_patch_v1": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfa..08b70ec 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -667,7 +667,10 @@ class Quantity(np.ndarray):\n         arrays = []\n         for input_, converter in zip(inputs, converters):\n             input_ = getattr(input_, \"value\", input_)\n-            arrays.append(converter(input_) if converter else input_)\n+            try:\n+                arrays.append(converter(input_) if converter else input_)\n+            except (TypeError, ValueError):\n+                return NotImplemented\n \n         # Call our superclass's __array_ufunc__\n         result = super().__array_ufunc__(function, method, *arrays, **kwargs)\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1614.9,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__review-control__20260611-134910/astropy__astropy-13977",
+  "workspace_manifest_sha256": "dd5a2ae04d6befc4e73d3804b407749d6e2fce2fb0031173092b088427778de5",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 108,
+      "duration_ms": 1612750,
+      "total_cost_usd": 7.059351500000001,
+      "usage": {
+        "input_tokens": 96,
+        "cache_creation_input_tokens": 136474,
+        "cache_read_input_tokens": 8501572,
+        "output_tokens": 78039,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 136474,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 371,
+            "cache_read_input_tokens": 151440,
+            "cache_creation_input_tokens": 1951,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1951
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 96,
+        "completion_tokens": 78039
+      }
+    }
+  ],
+  "wall_s": 1702.0,
+  "finished_at": "2026-06-11T16:01:19Z"
+}

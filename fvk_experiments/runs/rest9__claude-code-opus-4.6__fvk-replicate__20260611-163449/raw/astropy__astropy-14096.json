@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-14096",
+  "model_patch": "diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py\nindex ab475f7..e0bbe39 100644\n--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -894,6 +894,17 @@ class SkyCoord(ShapedLikeNDArray):\n             if frame_cls is not None and self.frame.is_transformable_to(frame_cls):\n                 return self.transform_to(attr)\n \n+        # If attr is a descriptor (e.g. a property) defined in the class\n+        # hierarchy, __getattr__ was invoked because the descriptor's __get__\n+        # raised AttributeError.  Re-invoke it so the *original* error\n+        # propagates instead of being masked by a misleading message.\n+        for cls in type(self).__mro__:\n+            if attr in cls.__dict__:\n+                desc = cls.__dict__[attr]\n+                if hasattr(desc, \"__get__\"):\n+                    return desc.__get__(self, type(self))\n+                break\n+\n         # Fail\n         raise AttributeError(\n             f\"'{self.__class__.__name__}' object has no attribute '{attr}'\"\n",
+  "model_patch_v1": "diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py\nindex ab475f7..e0bbe39 100644\n--- a/astropy/coordinates/sky_coordinate.py\n+++ b/astropy/coordinates/sky_coordinate.py\n@@ -894,6 +894,17 @@ class SkyCoord(ShapedLikeNDArray):\n             if frame_cls is not None and self.frame.is_transformable_to(frame_cls):\n                 return self.transform_to(attr)\n \n+        # If attr is a descriptor (e.g. a property) defined in the class\n+        # hierarchy, __getattr__ was invoked because the descriptor's __get__\n+        # raised AttributeError.  Re-invoke it so the *original* error\n+        # propagates instead of being masked by a misleading message.\n+        for cls in type(self).__mro__:\n+            if attr in cls.__dict__:\n+                desc = cls.__dict__[attr]\n+                if hasattr(desc, \"__get__\"):\n+                    return desc.__get__(self, type(self))\n+                break\n+\n         # Fail\n         raise AttributeError(\n             f\"'{self.__class__.__name__}' object has no attribute '{attr}'\"\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 515.6,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449/astropy__astropy-14096",
+  "workspace_manifest_sha256": "378af3f9de053dd99e4f0b77c28b0138dd26c64c55f101186ea9c5697386d943",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 39,
+      "duration_ms": 513653,
+      "total_cost_usd": 1.6496901000000002,
+      "usage": {
+        "input_tokens": 26,
+        "cache_creation_input_tokens": 57391,
+        "cache_read_input_tokens": 1218632,
+        "output_tokens": 23970,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 57391,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 238,
+            "cache_read_input_tokens": 72612,
+            "cache_creation_input_tokens": 1711,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1711
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 26,
+        "completion_tokens": 23970
+      }
+    }
+  ],
+  "wall_s": 593.2,
+  "finished_at": "2026-06-11T18:08:33Z"
+}

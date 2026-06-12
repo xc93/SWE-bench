@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13398",
+  "model_patch": "diff --git a/astropy/coordinates/builtin_frames/__init__.py b/astropy/coordinates/builtin_frames/__init__.py\nindex 6fd688c..1315098 100644\n--- a/astropy/coordinates/builtin_frames/__init__.py\n+++ b/astropy/coordinates/builtin_frames/__init__.py\n@@ -50,6 +50,7 @@ from . import cirs_observed_transforms\n from . import icrs_observed_transforms\n from . import intermediate_rotation_transforms\n from . import ecliptic_transforms\n+from . import itrs_observed_transforms\n \n # Import this after importing other frames, since this requires various\n # transformtions to set up the LSR frames\ndiff --git a/astropy/coordinates/builtin_frames/itrs_observed_transforms.py b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\nnew file mode 100644\nindex 0000000..70b3e3c\n--- /dev/null\n+++ b/astropy/coordinates/builtin_frames/itrs_observed_transforms.py\n@@ -0,0 +1,69 @@\n+# Licensed under a 3-clause BSD style license - see LICENSE.rst\n+\"\"\"\n+Contains the transformation functions for getting from ITRS to observed\n+frames (AltAz and HADec) and back.  These transformations stay entirely\n+within the ITRS, treating ITRS coordinates as time invariant.\n+\"\"\"\n+\n+import numpy as np\n+\n+from astropy import units as u\n+from astropy.coordinates.baseframe import frame_transform_graph\n+from astropy.coordinates.transformations import FunctionTransformWithFiniteDifference\n+from astropy.coordinates.matrix_utilities import rotation_matrix, matrix_transpose\n+\n+from .altaz import AltAz\n+from .hadec import HADec\n+from .itrs import ITRS\n+from .utils import PIOVER2\n+\n+\n+def itrs_to_observed_mat(observed_frame):\n+    lon, lat, height = observed_frame.location.to_geodetic('WGS84')\n+    elong = lon.to_value(u.radian)\n+\n+    if isinstance(observed_frame, AltAz):\n+        # form ITRS to AltAz matrix\n+        elat = lat.to_value(u.radian)\n+        # AltAz frame is left handed\n+        minus_x = np.eye(3)\n+        minus_x[0][0] = -1.0\n+        mat = (minus_x\n+               @ rotation_matrix(PIOVER2 - elat, 'y', unit=u.radian)\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+\n+    else:\n+        # form ITRS to HADec matrix\n+        # HADec frame is left handed\n+        minus_y = np.eye(3)\n+        minus_y[1][1] = -1.0\n+        mat = (minus_y\n+               @ rotation_matrix(elong, 'z', unit=u.radian))\n+    return mat\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, AltAz)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, ITRS, HADec)\n+def itrs_to_observed(itrs_coo, observed_frame):\n+    # Trying to synchronize the obstimes here makes no sense. In fact,\n+    # it's a real gotcha as doing an ITRS->ITRS transform references\n+    # ITRS coordinates, which should be tied to the Earth, to the SSB.\n+    # Instead, we treat ITRS coordinates as time invariant here.\n+\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = (itrs_coo.cartesian\n+                             - observed_frame.location.get_itrs().cartesian)\n+    rep = topocentric_itrs_repr.transform(itrs_to_observed_mat(observed_frame))\n+    return observed_frame.realize_frame(rep)\n+\n+\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, AltAz, ITRS)\n+@frame_transform_graph.transform(FunctionTransformWithFiniteDifference, HADec, ITRS)\n+def observed_to_itrs(observed_coo, itrs_frame):\n+\n+    # form the Topocentric ITRS position\n+    topocentric_itrs_repr = observed_coo.cartesian.transform(matrix_transpose(\n+                            itrs_to_observed_mat(observed_coo)))\n+    # form the Geocentric ITRS position\n+    rep = topocentric_itrs_repr + observed_coo.location.get_itrs().cartesian\n+    return itrs_frame.realize_frame(rep)\n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1449.5,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__baseline__20260611-122549/astropy__astropy-13398",
+  "workspace_manifest_sha256": "cb6fa488a094b7594f3f89cb542c494b3979d2bba4bdd680aed9f8b71129f02f",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 85,
+      "duration_ms": 1447195,
+      "total_cost_usd": 5.81405775,
+      "usage": {
+        "input_tokens": 75,
+        "cache_creation_input_tokens": 132489,
+        "cache_read_input_tokens": 7247321,
+        "output_tokens": 54401,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 132489,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 240,
+            "cache_read_input_tokens": 131977,
+            "cache_creation_input_tokens": 512,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 512
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 75,
+        "completion_tokens": 54401
+      }
+    }
+  ],
+  "wall_s": 1539.2,
+  "finished_at": "2026-06-11T12:59:51Z"
+}

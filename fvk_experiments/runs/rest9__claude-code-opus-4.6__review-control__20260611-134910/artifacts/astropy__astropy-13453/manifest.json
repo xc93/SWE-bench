@@ -1,0 +1,21 @@
+{
+  "instance_id": "astropy__astropy-13453",
+  "arm_kind": "review-control",
+  "built_at": "2026-06-11T15:18:29Z",
+  "base_commit": "19cc80471739bcb67b7e8099246b391c355023ee",
+  "repo_source": "https://github.com/astropy/astropy.git",
+  "repo_local_head": "a8278b3dfd09c417754de1e4f6c7e51b8d4a7bd7",
+  "venv": {
+    "python": "Python 3.9.25",
+    "spec_source": "swebench.MAP_REPO_VERSION_TO_SPECS"
+  },
+  "kit_commit": null,
+  "kit_dirty": null,
+  "staged": {
+    "benchmark/PROMPT.md": "177f67ee8596b627d6747469ceee29fbe610f8ea8fbf99a7529a17302e8341a4",
+    "benchmark/public_instance.json": "aa3aac608c91301f67978d39e2d102023ade77a7d086fba19f5702902289c104",
+    "scripts/private_eval.py": "d9658115f2045d1044b90daeffe08748808c6a75235c1b40f9c2857b170cbfb7"
+  },
+  "row_path": "/home/xc/Projects/SWE-bench/fvk_experiments/runs/rest9__claude-code-opus-4.6__review-control__20260611-134910/private/astropy__astropy-13453/row.json",
+  "row_sha256": "c2e93b8bb2dc2d4f2dfaf4cfbc7b476d116b6b4947149f865229376cb2b34ef5"
+}

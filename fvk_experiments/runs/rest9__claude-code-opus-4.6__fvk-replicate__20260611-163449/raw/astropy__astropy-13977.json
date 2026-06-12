@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13977",
+  "model_patch": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfa..4ef73ec 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -636,13 +636,28 @@ class Quantity(np.ndarray):\n         result : `~astropy.units.Quantity`\n             Results of the ufunc, with the unit set properly.\n         \"\"\"\n+        # If any input or output is not something Quantity can handle \u2014\n+        # i.e., it defines __array_ufunc__ but is not an ndarray (sub)class \u2014\n+        # return NotImplemented so the other type gets a chance.\n+        out = kwargs.get(\"out\", None)\n+        for inp in inputs:\n+            if (not isinstance(inp, np.ndarray)\n+                    and getattr(inp, '__array_ufunc__', None) is not None):\n+                return NotImplemented\n+        if out is not None:\n+            out_args = out if isinstance(out, tuple) else (out,)\n+            for out_ in out_args:\n+                if out_ is not None:\n+                    if (not isinstance(out_, np.ndarray)\n+                            and getattr(out_, '__array_ufunc__', None) is not None):\n+                        return NotImplemented\n+\n         # Determine required conversion functions -- to bring the unit of the\n         # input to that expected (e.g., radian for np.sin), or to get\n         # consistent units between two inputs (e.g., in np.add) --\n         # and the unit of the result (or tuple of units for nout > 1).\n         converters, unit = converters_and_unit(function, method, *inputs)\n \n-        out = kwargs.get(\"out\", None)\n         # Avoid loop back by turning any Quantity output into array views.\n         if out is not None:\n             # If pre-allocated output is used, check it is suitable.\n",
+  "model_patch_v1": "diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py\nindex b98abfa..1c90ed7 100644\n--- a/astropy/units/quantity.py\n+++ b/astropy/units/quantity.py\n@@ -667,7 +667,13 @@ class Quantity(np.ndarray):\n         arrays = []\n         for input_, converter in zip(inputs, converters):\n             input_ = getattr(input_, \"value\", input_)\n-            arrays.append(converter(input_) if converter else input_)\n+            try:\n+                arrays.append(converter(input_) if converter else input_)\n+            except (ValueError, TypeError):\n+                # If the input can't be converted, it's not something\n+                # Quantity can handle. Return NotImplemented to let\n+                # other classes handle the operation via reflected ops.\n+                return NotImplemented\n \n         # Call our superclass's __array_ufunc__\n         result = super().__array_ufunc__(function, method, *arrays, **kwargs)\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1923.1,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449/astropy__astropy-13977",
+  "workspace_manifest_sha256": "fcbcf089ad7b9cbcbbf0bb70f9b4821e450e76db6e8e0b4d6f418df90d38b779",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 104,
+      "duration_ms": 1921055,
+      "total_cost_usd": 7.19786775,
+      "usage": {
+        "input_tokens": 87,
+        "cache_creation_input_tokens": 175752,
+        "cache_read_input_tokens": 6891467,
+        "output_tokens": 94057,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 175752,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 458,
+            "cache_read_input_tokens": 42916,
+            "cache_creation_input_tokens": 338,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 338
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 87,
+        "completion_tokens": 94057
+      }
+    }
+  ],
+  "wall_s": 2000.3,
+  "finished_at": "2026-06-11T17:58:40Z"
+}

@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-12907",
+  "model_patch": "diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py\nindex a308e27..45bea36 100644\n--- a/astropy/modeling/separable.py\n+++ b/astropy/modeling/separable.py\n@@ -242,7 +242,7 @@ def _cstack(left, right):\n         cright = _coord_matrix(right, 'right', noutp)\n     else:\n         cright = np.zeros((noutp, right.shape[1]))\n-        cright[-right.shape[0]:, -right.shape[1]:] = 1\n+        cright[-right.shape[0]:, -right.shape[1]:] = right\n \n     return np.hstack([cleft, cright])\n \n",
+  "model_patch_v1": "",
+  "final_source": "solution",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "baseline",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 101.4,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__baseline__20260611-122549/astropy__astropy-12907",
+  "workspace_manifest_sha256": "a2347aa43173f0489238b2deb96df9ea13a9f801982c0457c7bfb3dcd3a22df1",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 19,
+      "duration_ms": 99045,
+      "total_cost_usd": 0.40070674999999994,
+      "usage": {
+        "input_tokens": 11,
+        "cache_creation_input_tokens": 22925,
+        "cache_read_input_tokens": 261705,
+        "output_tokens": 4983,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 22925,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 210,
+            "cache_read_input_tokens": 33336,
+            "cache_creation_input_tokens": 1172,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1172
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 11,
+        "completion_tokens": 4983
+      }
+    }
+  ],
+  "wall_s": 184.1,
+  "finished_at": "2026-06-11T12:29:01Z"
+}

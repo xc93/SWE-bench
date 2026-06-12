@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13033",
+  "model_patch": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex c279f35..8164c28 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -76,9 +76,15 @@ class BaseTimeSeries(QTable):\n \n             elif self.colnames[:len(required_columns)] != required_columns:\n \n-                raise ValueError(\"{} object is invalid - expected '{}' \"\n-                                 \"as the first column{} but found '{}'\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n+                if len(required_columns) == 1:\n+                    raise ValueError(\"{} object is invalid - expected '{}' \"\n+                                     \"as the first column but found '{}'\"\n+                                     .format(self.__class__.__name__, required_columns[0], self.colnames[0]))\n+                else:\n+                    raise ValueError(\"{} object is invalid - expected {} \"\n+                                     \"as the first column{} but found {}\"\n+                                     .format(self.__class__.__name__, required_columns, plural,\n+                                             self.colnames[:len(required_columns)]))\n \n             if (self._required_columns_relax\n                     and self._required_columns == self.colnames[:len(self._required_columns)]):\n",
+  "model_patch_v1": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex c279f35..d23e765 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -76,9 +76,9 @@ class BaseTimeSeries(QTable):\n \n             elif self.colnames[:len(required_columns)] != required_columns:\n \n-                raise ValueError(\"{} object is invalid - expected '{}' \"\n-                                 \"as the first column{} but found '{}'\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n+                raise ValueError(\"{} object is invalid - expected {} \"\n+                                 \"as the first column{} but found {}\"\n+                                 .format(self.__class__.__name__, required_columns, plural, self.colnames[:len(required_columns)]))\n \n             if (self._required_columns_relax\n                     and self._required_columns == self.colnames[:len(self._required_columns)]):\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "review-control",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 926.0,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__review-control__20260611-134910/astropy__astropy-13033",
+  "workspace_manifest_sha256": "ab37816a158dbb8446f98554df329ef8b53fdfb44141b7db1a92b238c86e2195",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 65,
+      "duration_ms": 925204,
+      "total_cost_usd": 2.4182310000000005,
+      "usage": {
+        "input_tokens": 53,
+        "cache_creation_input_tokens": 52091,
+        "cache_read_input_tokens": 2521208,
+        "output_tokens": 30092,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 52091,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 375,
+            "cache_read_input_tokens": 77296,
+            "cache_creation_input_tokens": 322,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 322
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 53,
+        "completion_tokens": 30092
+      }
+    }
+  ],
+  "wall_s": 1011.3,
+  "finished_at": "2026-06-11T14:16:57Z"
+}

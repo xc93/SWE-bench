@@ -1,0 +1,64 @@
+{
+  "instance_id": "astropy__astropy-13033",
+  "model_patch": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex c279f35..1ea0d8d 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -76,9 +76,14 @@ class BaseTimeSeries(QTable):\n \n             elif self.colnames[:len(required_columns)] != required_columns:\n \n-                raise ValueError(\"{} object is invalid - expected '{}' \"\n-                                 \"as the first column{} but found '{}'\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n+                raise ValueError(\n+                    \"{} object is invalid - expected {} as the first column{} but found {}\"\n+                    .format(self.__class__.__name__,\n+                            \"'{}'\".format(required_columns[0]) if len(required_columns) == 1\n+                                else required_columns,\n+                            plural,\n+                            \"'{}'\".format(self.colnames[0]) if len(required_columns) == 1\n+                                else self.colnames[:len(required_columns)]))\n \n             if (self._required_columns_relax\n                     and self._required_columns == self.colnames[:len(self._required_columns)]):\n",
+  "model_patch_v1": "diff --git a/astropy/timeseries/core.py b/astropy/timeseries/core.py\nindex c279f35..91b08fe 100644\n--- a/astropy/timeseries/core.py\n+++ b/astropy/timeseries/core.py\n@@ -72,13 +72,18 @@ class BaseTimeSeries(QTable):\n \n                 raise ValueError(\"{} object is invalid - expected '{}' \"\n                                  \"as the first column{} but time series has no columns\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural))\n+                                 .format(self.__class__.__name__,\n+                                         required_columns[0] if len(required_columns) == 1 else required_columns,\n+                                         plural))\n \n             elif self.colnames[:len(required_columns)] != required_columns:\n \n                 raise ValueError(\"{} object is invalid - expected '{}' \"\n                                  \"as the first column{} but found '{}'\"\n-                                 .format(self.__class__.__name__, required_columns[0], plural, self.colnames[0]))\n+                                 .format(self.__class__.__name__,\n+                                         required_columns[0] if len(required_columns) == 1 else required_columns,\n+                                         plural,\n+                                         self.colnames[0] if len(required_columns) == 1 else self.colnames[:len(required_columns)]))\n \n             if (self._required_columns_relax\n                     and self._required_columns == self.colnames[:len(self._required_columns)]):\n",
+  "final_source": "v2",
+  "contaminated": false,
+  "contamination_evidence": [],
+  "arm_kind": "fvk-replicate",
+  "status": "ok",
+  "error": null,
+  "attempts": [
+    {
+      "returncode": 0,
+      "timed_out": false,
+      "duration_s": 1031.4,
+      "stderr_tail": ""
+    }
+  ],
+  "workspace": "/home/xc/.cache/fvk-workspaces/rest9__claude-code-opus-4.6__fvk-replicate__20260611-163449/astropy__astropy-13033",
+  "workspace_manifest_sha256": "697e45c6a8d416126fd4550ca0c83a7463e9e561bb8ee0c29192894d35c3ec4d",
+  "samples": [
+    {
+      "sample": 0,
+      "provider": "claude-code",
+      "num_turns": 61,
+      "duration_ms": 1030659,
+      "total_cost_usd": 3.55217275,
+      "usage": {
+        "input_tokens": 48,
+        "cache_creation_input_tokens": 151741,
+        "cache_read_input_tokens": 2910263,
+        "output_tokens": 45766,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 151741,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 1,
+            "output_tokens": 338,
+            "cache_read_input_tokens": 110222,
+            "cache_creation_input_tokens": 1881,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1881
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "prompt_tokens": 48,
+        "completion_tokens": 45766
+      }
+    }
+  ],
+  "wall_s": 1109.0,
+  "finished_at": "2026-06-11T16:59:26Z"
+}
