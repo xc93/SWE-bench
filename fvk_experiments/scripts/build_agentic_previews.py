@@ -86,6 +86,70 @@ def build_previews() -> None:
         print(f"wrote {len(PINNED)} previews under {outdir}")
 
 
+# ---------------------------------------------------------------- v2 -------
+# v2 (45-instance multi-repo) previews: one REPRESENTATIVE instance per repo of
+# the Grigore-set (8 repos; includes 3 of the 6 hard compiled-dep ids), per arm,
+# under preview/<arm>-v2/. Bounded on purpose — the full 45 would be 135 files;
+# rendering is unit-tested, previews exist for human review of exact wording.
+
+V2_TEMPLATE_PATHS = {arm: AGENTIC_DIR / f"{arm}-v2.md" for arm in ARMS}
+
+PINNED_V2_PER_REPO = [
+    "django__django-10554",                  # django (22 of the 45)
+    "sympy__sympy-17630",                    # sympy (Grigore's own sample)
+    "sphinx-doc__sphinx-9461",               # sphinx-doc
+    "astropy__astropy-13398",                # astropy [hard: pre-built venv]
+    "pytest-dev__pytest-5787",               # pytest-dev (setuptools-scm repo)
+    "pydata__xarray-3993",                   # xarray [hard]
+    "pylint-dev__pylint-4551",               # pylint-dev
+    "scikit-learn__scikit-learn-25102",      # scikit-learn [hard]
+]
+
+CONTROL_DIFF_V2_HEADER = """\
+# fvk-replicate-v2 vs review-control-v2 — template diff
+
+Same rationale as CONTROL_DIFF.md (v1): the control isolates WHAT Phase 3
+injects (FVK vs plain expert review) while holding everything else constant —
+including the v2 Phase 0 (agent self-build env, Grigore's verbatim fallback
+recipe) and the docker-grading disclosure on the deviation-(c) line, which are
+byte-identical in both arms.
+
+Diff of the template BODIES as agents see them (frontmatter and HTML deviation
+comments stripped; `{field}` placeholders unexpanded). Regenerate with
+`.venv/bin/python fvk_experiments/scripts/build_agentic_previews.py`.
+
+```diff
+"""
+
+
+def build_control_diff_v2() -> None:
+    rep = load_template(V2_TEMPLATE_PATHS["fvk-replicate"]).splitlines(keepends=True)
+    ctl = load_template(V2_TEMPLATE_PATHS["review-control"]).splitlines(keepends=True)
+    diff = "".join(difflib.unified_diff(
+        rep, ctl, fromfile="fvk-replicate-v2.md", tofile="review-control-v2.md", n=3))
+    out = AGENTIC_DIR / "CONTROL_DIFF-v2.md"
+    out.write_text(CONTROL_DIFF_V2_HEADER + diff + "```\n")
+    changed = sum(1 for l in diff.splitlines() if l[:1] in "+-" and l[:3] not in ("+++", "---"))
+    print(f"wrote {out} ({changed} changed lines)")
+
+
+def build_previews_v2() -> None:
+    from datasets import load_dataset
+
+    ds = load_dataset("princeton-nlp/SWE-bench_Verified", split="test")
+    offsets = {iid: i for i, iid in enumerate(ds["instance_id"])}
+    for arm in ARMS:
+        outdir = AGENTIC_DIR / "preview" / f"{arm}-v2"
+        outdir.mkdir(parents=True, exist_ok=True)
+        for iid in PINNED_V2_PER_REPO:
+            row = ds[offsets[iid]]
+            (outdir / f"{iid}.md").write_text(
+                render(V2_TEMPLATE_PATHS[arm], row, row_offset=offsets[iid]))
+        print(f"wrote {len(PINNED_V2_PER_REPO)} previews under {outdir}")
+
+
 if __name__ == "__main__":
     build_control_diff()
     build_previews()
+    build_control_diff_v2()
+    build_previews_v2()

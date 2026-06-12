@@ -175,8 +175,17 @@ def fields_for_instance(row: dict, *, row_offset: int | None = None) -> dict[str
     repo = row["repo"]
     base_commit = row["base_commit"]
     version = str(row.get("version", ""))
-    module_name = repo.split("/")[-1]
-    repo_title = module_name.capitalize()
+    # `module_name` is the top-level IMPORT name (what the env-verify line does
+    # `import {module_name}` on), generalized via the env-spec adapter so it is
+    # correct for repos whose distribution/org name differs from the import name
+    # (e.g. scikit-learn/scikit-learn -> sklearn, sphinx-doc/sphinx -> sphinx).
+    # For astropy this is "astropy", identical to the old `repo.split("/")[-1]`,
+    # so the curated-13236 fidelity is unaffected. `repo_title` stays the DISPLAY
+    # name from the repo path segment (not the import name), so it never becomes
+    # e.g. "Sklearn"; for astropy it remains "Astropy".
+    from .env_specs import import_name_for
+    module_name = import_name_for(repo)
+    repo_title = repo.split("/")[-1].capitalize()
     f2p_count = _count(row["FAIL_TO_PASS"])
     p2p_count = _count(row["PASS_TO_PASS"])
     if row_offset is None:
